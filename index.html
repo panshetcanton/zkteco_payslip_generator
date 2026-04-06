@@ -572,26 +572,28 @@ function handleFile(file) {
 
 function processDAT(text) {
   const lines = text.trim().split('\n').filter(l => l.trim());
-  const raw = {}; // empId -> date -> [timestamps]
+  // raw[empId][date] = { in: 'HH:MM', out: 'HH:MM' }
+  const raw = {};
 
   for (const line of lines) {
-    // Flexible parsing: handle both tab and space separators
-    let parts;
-    if (line.includes('\t')) {
-      // Tab-separated
-      parts = line.split('\t');
-    } else {
-      // Space-separated (split by one or more spaces)
-      parts = line.trim().split(/\s+/);
-    }
-    
-    if (parts.length < 3) continue;
+    const parts = line.trim().split(/\t|\s{2,}/);
+    if (parts.length < 4) continue;
     const empId = parts[0].trim();
-    const date = parts[1].trim();
-    const time = parts[2].trim().substring(0, 5); // HH:MM
+    const datetime = parts[1].trim(); // '2026-03-02 07:26:20'
+    const punchType = parseInt(parts[3].trim(), 10); // 0=in, 1=out
+    const spaceIdx = datetime.indexOf(' ');
+    if (spaceIdx === -1) continue;
+    const date = datetime.substring(0, spaceIdx);
+    const time = datetime.substring(spaceIdx + 1, spaceIdx + 6); // HH:MM
     if (!raw[empId]) raw[empId] = {};
-    if (!raw[empId][date]) raw[empId][date] = [];
-    raw[empId][date].push(time);
+    if (!raw[empId][date]) raw[empId][date] = { in: null, out: null };
+    if (punchType === 0) {
+      // Keep earliest time-in
+      if (!raw[empId][date].in || time < raw[empId][date].in) raw[empId][date].in = time;
+    } else {
+      // Keep latest time-out
+      if (!raw[empId][date].out || time > raw[empId][date].out) raw[empId][date].out = time;
+    }
   }
 
   // Collect all unique dates
@@ -599,27 +601,26 @@ function processDAT(text) {
   for (const emp of Object.values(raw)) for (const d of Object.keys(emp)) dateSet.add(d);
   allDates = Array.from(dateSet).sort();
 
-  // Build parsedData: pair first as Time In, last as Time Out
   parsedData = {};
   missingLogs = [];
 
   for (const [empId, dates] of Object.entries(raw)) {
     parsedData[empId] = {};
     for (const date of allDates) {
-      const times = dates[date];
-      if (!times || times.length === 0) continue;
-      const timeIn = times[0];
-      const timeOut = times.length > 1 ? times[times.length - 1] : null;
+      const rec = dates[date];
+      if (!rec) continue;
+      const timeIn = rec.in;
+      const timeOut = rec.out;
       parsedData[empId][date] = { timeIn, timeOut };
-      if (!timeOut) {
+      if (!timeIn) {
+        const d = new Date(date);
+        missingLogs.push({ empId, date, day: DAYS[d.getDay()], issue: 'Missing Time In' });
+      } else if (!timeOut) {
         const d = new Date(date);
         missingLogs.push({ empId, date, day: DAYS[d.getDay()], issue: 'Missing Time Out' });
       }
     }
   }
-
-  // Also check for missing Time In (only 1 record and it looks like a late time)
-  // (already handled above - single record = timeIn only)
 
   updateStats(lines.length);
   buildPreview();
@@ -848,33 +849,27 @@ function buildAttendanceRows(empId) {
 
     const { timeIn, timeOut } = rec;
     let hoursWorked = '—', otHrs = '—';
-    let timeOutDisplay = timeOut ? timeOut : '—';
-    let timeInDisplay = timeIn;
+    let timeOutDisplay = timeOut || '';
+    let timeInDisplay = timeIn || '';
     let earlyOut = false;
 
-    let duration = '—';
+    let duration = '';
     if (timeIn && timeOut) {
       const [ih, im] = timeIn.split(':').map(Number);
       const [oh, om] = timeOut.split(':').map(Number);
       const inMins = ih * 60 + im;
       const outMins = oh * 60 + om;
 
-      // Duration (raw time difference with rounding)
-      const rawWorked = Math.max(0, (outMins - inMins) / 60);
-      duration = roundHalf(rawWorked);
-      
-      // Hours worked (duration - 1 hour break)
-      hoursWorked = duration - 1;
+      // Duration = raw time difference rounded to nearest 0.5
+      const rawDuration = Math.max(0, (outMins - inMins) / 60);
+      duration = roundHalf(rawDuration);
 
-      // OT: hours beyond shift end (17:00)
-      const shiftEndMins = 17 * 60;
-      const rawOT = Math.max(0, (outMins - shiftEndMins) / 60);
-      otHrs = rawOT > 0 ? roundHalf(rawOT) : '—';
+      // Hours worked = duration - 1 hour break
+      hoursWorked = Math.max(0, duration - 1);
 
-      // Early out marker: if out before 17:00
-      if (outMins < shiftEndMins) {
-        timeOutDisplay = timeOut + '*';
-      }
+      // OT = hours worked beyond 8
+      const rawOT = hoursWorked - 8;
+      otHrs = rawOT > 0 ? roundHalf(rawOT) : 0;
     }
 
     rows.push([date, dayName, timeInDisplay, timeOutDisplay, duration, hoursWorked, otHrs]);
@@ -921,8 +916,8 @@ async function generateExcel() {
       m.empId,
       m.date,
       m.day,
-      rec?.timeIn || '—',
-      rec?.timeOut || '—',
+      rec?.timeIn || '',
+      rec?.timeOut || '',
       m.issue
     ];
   });
@@ -1113,22 +1108,25 @@ async function generateExcel() {
 
       ws[XLSX.utils.encode_cell({ r, c: 0 })] = { v: date, t: 's' };
       ws[XLSX.utils.encode_cell({ r, c: 1 })] = { v: day, t: 's' };
-      ws[XLSX.utils.encode_cell({ r, c: 2 })] = { v: timeIn === '—' ? '' : timeIn, t: 's' };
-      ws[XLSX.utils.encode_cell({ r, c: 3 })] = { v: (timeOut === '—' || !timeOut) ? '' : timeOut.replace('*',''), t: 's' };
+      const toExcelTime = t => { if (!t) return null; const [h,m] = t.split(':').map(Number); return (h * 60 + m) / 1440; };
+      const tiVal = toExcelTime(timeIn);
+      const toVal = toExcelTime(timeOut);
+      ws[XLSX.utils.encode_cell({ r, c: 2 })] = tiVal != null ? { v: tiVal, t: 'n', z: 'hh:mm' } : { v: '', t: 's' };
+      ws[XLSX.utils.encode_cell({ r, c: 3 })] = toVal != null ? { v: toVal, t: 'n', z: 'hh:mm' } : { v: '', t: 's' };
 
-      // E: Duration — raw time difference with rounding
+      // E: Duration = (TimeOut - TimeIn) * 24 rounded to 0.5
       ws[XLSX.utils.encode_cell({ r, c: 4 })] = { t: 'n',
         f: `IF(AND(C${er}<>"",D${er}<>""),FLOOR((D${er}-C${er})*24,0.5),"")`
       };
 
-      // F: Hours Worked — Duration - 1 hour break
+      // F: Hours Worked = Duration - 1 (break)
       ws[XLSX.utils.encode_cell({ r, c: 5 })] = { t: 'n',
-        f: `IF(E${er}<>"",E${er}-1,"")`
+        f: `IF(E${er}<>"",MAX(0,E${er}-1),"")`
       };
 
-      // G: OT (hrs) — mins past 17:00, same rounding
+      // G: OT = max(0, Hours Worked - 8)
       ws[XLSX.utils.encode_cell({ r, c: 6 })] = { t: 'n',
-        f: `IF(D${er}="","",IF(D${er}>=TIME(17,0,0),FLOOR((D${er}-TIME(17,0,0))*24,0.5),0))`
+        f: `IF(F${er}<>"",MAX(0,F${er}-8),"")`
       };
     });
 

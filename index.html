@@ -638,7 +638,7 @@ function updateStats(total) {
 
 // ─── Preview ──────────────────────────────────────────────────────────────────
 function buildPreview() {
-  const empIds = Object.keys(parsedData).sort();
+  const empIds = Object.keys(parsedData);
   activeEmp = activeEmp || empIds[0];
 
   // Build employee chips
@@ -695,13 +695,13 @@ function renderAttendanceTable(empId) {
 function renderLateTable() {
   const lateRows = [];
   const offenseCount = {};
-  for (const empId of Object.keys(parsedData).sort()) {
+  for (const empId of Object.keys(parsedData)) {
     offenseCount[empId] = 0;
     for (const date of allDates) {
       const rec = parsedData[empId]?.[date];
       if (!rec || !rec.timeIn) continue;
       const [ih, im] = rec.timeIn.split(':').map(Number);
-      const lateMins = (ih * 60 + im) - (8 * 60);
+      const lateMins = (ih * 60 + im) - (8 * 60 + 0);
       if (lateMins > 0) {
         offenseCount[empId]++;
         const d = new Date(date);
@@ -786,12 +786,11 @@ function renderPayslipPreview(empId) {
         <div>
           <div style="margin-bottom: 8px;"><strong>Employee ID:</strong> ${empId}</div>
           <div style="margin-bottom: 8px;"><strong>Name:</strong> <span style="color: #999;">[To be filled]</span></div>
-          <div><strong>Department:</strong> <span style="color: #999;">[To be filled]</span></div>
+          <div style="margin-bottom: 8px;"><strong>Basic Pay (Daily):</strong> ₱695</div>
         </div>
         <div>
           <div style="margin-bottom: 8px;"><strong>Pay Period:</strong> March 1-15, 2026</div>
           <div style="margin-bottom: 8px;"><strong>Pay Date:</strong> March 20, 2026</div>
-          <div style="margin-bottom: 8px;"><strong>Basic Pay (Daily):</strong> ₱695</div>
           <div><strong>Hourly Rate:</strong> ₱86.88</div>
         </div>
       </div>
@@ -851,7 +850,6 @@ function buildAttendanceRows(empId) {
     let hoursWorked = '—', otHrs = '—';
     let timeOutDisplay = timeOut || '';
     let timeInDisplay = timeIn || '';
-    let earlyOut = false;
 
     let duration = '';
     if (timeIn && timeOut) {
@@ -864,11 +862,11 @@ function buildAttendanceRows(empId) {
       const rawDuration = Math.max(0, (outMins - inMins) / 60);
       duration = roundHalf(rawDuration);
 
-      // Hours worked = duration - 1 hour break
-      hoursWorked = Math.max(0, duration - 1);
+      // Hours worked = MIN(duration - 1, 8)
+      hoursWorked = Math.min(duration - 1, 8);
 
-      // OT = hours worked beyond 8
-      const rawOT = hoursWorked - 8;
+      // OT = MAX(0, (duration - 1) - 8)
+      const rawOT = (duration - 1) - 8;
       otHrs = rawOT > 0 ? roundHalf(rawOT) : 0;
     }
 
@@ -878,7 +876,7 @@ function buildAttendanceRows(empId) {
 }
 
 // ─── Excel Generation ─────────────────────────────────────────────────────────
-async function generateExcel() {
+function generateExcel() {
   const progressWrap = document.getElementById('progressWrap');
   const progressBar = document.getElementById('progressBar');
   const progressLabel = document.getElementById('progressLabel');
@@ -886,10 +884,12 @@ async function generateExcel() {
 
   progressWrap.style.display = 'block';
   document.getElementById('successBanner').style.display = 'none';
+  progressLabel.textContent = 'Starting...';
+  progressBar.style.width = '5%';
+  progressPct.textContent = '5%';
 
   const wb = XLSX.utils.book_new();
-  const empIds = Object.keys(parsedData).sort();
-  const total = empIds.length + 2;
+  const empIds = Object.keys(parsedData);
   let done = 0;
 
   const headerStyle = {
@@ -907,7 +907,6 @@ async function generateExcel() {
   progressLabel.textContent = 'Building Missing Log Report…';
   progressBar.style.width = '10%';
   progressPct.textContent = '10%';
-  await new Promise(r => setTimeout(r, 10));
 
   const missingCols = ['Employee ID', 'Date', 'Day', 'Time In', 'Time Out', 'Issue'];
   const missingRows = missingLogs.map(m => {
@@ -990,7 +989,6 @@ async function generateExcel() {
   progressLabel.textContent = 'Building Late Report…';
   progressBar.style.width = '20%';
   progressPct.textContent = '20%';
-  await new Promise(r => setTimeout(r, 10));
 
   const lateBorder = {
     top:    { style: 'thin', color: { rgb: 'b2e0d8' } },
@@ -1007,7 +1005,7 @@ async function generateExcel() {
       if (!rec || !rec.timeIn) continue;
       const [ih, im] = rec.timeIn.split(':').map(Number);
       const inMins = ih * 60 + im;
-      const shiftMins = 8 * 60;
+      const shiftMins = 9 * 60;
       const lateMins = inMins - shiftMins;
       if (lateMins > 0) {
         const d = new Date(date);
@@ -1084,11 +1082,8 @@ async function generateExcel() {
   // ── Per-employee sheets (THIRD onwards) ──
   for (const empId of empIds) {
     // ATTENDANCE SHEET
-    progressLabel.textContent = `Building attendance: Employee ${empId}`;
-    const pct = Math.round(20 + ((done - 1) / (empIds.length * 2)) * 70);
-    progressBar.style.width = pct + '%';
-    progressPct.textContent = pct + '%';
-    await new Promise(r => setTimeout(r, 10));
+    progressLabel.textContent = `Building: Employee ${empId}`;
+    progressBar.style.width = Math.round(20 + (done / empIds.length) * 80) + '%';
 
     const rows = buildAttendanceRows(empId);
 
@@ -1119,14 +1114,14 @@ async function generateExcel() {
         f: `IF(AND(C${er}<>"",D${er}<>""),FLOOR((D${er}-C${er})*24,0.5),"")`
       };
 
-      // F: Hours Worked = Duration - 1 (break)
+      // F: Regular Time = MIN(Duration - 1, 8)
       ws[XLSX.utils.encode_cell({ r, c: 5 })] = { t: 'n',
-        f: `IF(E${er}<>"",MAX(0,E${er}-1),"")`
+        f: `IF(E${er}<>"",MIN(E${er}-1,8),"")`
       };
 
-      // G: OT = max(0, Hours Worked - 8)
+      // G: OT = MAX(0, (Duration - 1) - 8)
       ws[XLSX.utils.encode_cell({ r, c: 6 })] = { t: 'n',
-        f: `IF(F${er}<>"",MAX(0,F${er}-8),"")`
+        f: `IF(E${er}<>"",MAX(0,(E${er}-1)-8),"")`
       };
     });
 
@@ -1198,11 +1193,6 @@ async function generateExcel() {
     done++;
 
     // PAYSLIP SHEET
-    progressLabel.textContent = `Building payslip: Employee ${empId}`;
-    const pct2 = Math.round(20 + ((done - 1) / (empIds.length * 2)) * 70);
-    progressBar.style.width = pct2 + '%';
-    progressPct.textContent = pct2 + '%';
-    await new Promise(r => setTimeout(r, 10));
 
     const payslipData = [
       [],
@@ -1212,8 +1202,7 @@ async function generateExcel() {
       [],
       ['', 'Employee ID:', empId, '', 'Pay Period:', 'March 1-15, 2026'],
       ['', 'Name:', '', '', 'Pay Date:', 'March 20, 2026'],
-      ['', 'Department:', '', '', 'Basic Pay (Daily):', '₱695'],
-      ['', '', '', '', 'Hourly Rate:', '₱86.88'],
+      ['', 'Basic Pay (Daily):', '₱695', '', 'Hourly Rate:', '₱86.88'],
       [],
       ['', 'EARNINGS', '', '', 'DEDUCTIONS'],
       ['', 'Basic Pay', '', '', 'SSS', '₱581.30'],
@@ -1239,47 +1228,44 @@ async function generateExcel() {
     const attLastRow = rows.length + 3;
 
     // Calculate formulas referencing attendance data
-    // C12: Basic Pay = SUM of Hours Worked (F column) * Hourly Rate (F8)
-    wsp['C12'] = { t: 'n', f: `SUMIF('${attSheetName}'!B:B,"<>Saturday",'${attSheetName}'!F:F)*SUMIF('${attSheetName}'!B:B,"<>Sunday",'${attSheetName}'!F:F)*0+SUM('${attSheetName}'!F4:F${attLastRow})*F9` };
+    // C11: Basic Pay = SUM of Hours Worked (F column) * Hourly Rate (F8)
+    wsp['C11'] = { t: 'n', f: `SUM('${attSheetName}'!F4:F${attLastRow})*F8`, z: '₱#,##0.00' };
     
-    // C13: Weekend Premium = SUM(Hours Worked on Sat/Sun) * Hourly Rate * 0.3
-    wsp['C13'] = { t: 'n', f: `(SUMIF('${attSheetName}'!B:B,"Saturday",'${attSheetName}'!F:F)+SUMIF('${attSheetName}'!B:B,"Sunday",'${attSheetName}'!F:F))*F9*0.3` };
+    wsp['C12'] = { t: 'n', f: `(SUMIF('${attSheetName}'!B:B,"Saturday",'${attSheetName}'!F:F)+SUMIF('${attSheetName}'!B:B,"Sunday",'${attSheetName}'!F:F))*F8*0.3`, z: '₱#,##0.00' };
     
-    // C14: OT Regular = SUM(OT on weekdays) * Hourly Rate * 1.25
-    wsp['C14'] = { t: 'n', f: `SUMIFS('${attSheetName}'!G:G,'${attSheetName}'!B:B,"<>Saturday",'${attSheetName}'!B:B,"<>Sunday")*F9*1.25` };
+    wsp['C13'] = { t: 'n', f: `SUMIFS('${attSheetName}'!G:G,'${attSheetName}'!B:B,"<>Saturday",'${attSheetName}'!B:B,"<>Sunday")*F8*1.25`, z: '₱#,##0.00' };
     
-    // C15: OT Weekend = SUM(OT on Sat/Sun) * Hourly Rate * 1.3
-    wsp['C15'] = { t: 'n', f: `(SUMIF('${attSheetName}'!B:B,"Saturday",'${attSheetName}'!G:G)+SUMIF('${attSheetName}'!B:B,"Sunday",'${attSheetName}'!G:G))*F9*1.3` };
+    wsp['C14'] = { t: 'n', f: `(SUMIF('${attSheetName}'!B:B,"Saturday",'${attSheetName}'!G:G)+SUMIF('${attSheetName}'!B:B,"Sunday",'${attSheetName}'!G:G))*F8*1.3`, z: '₱#,##0.00' };
     
-    // C17: Gross Pay = SUM(C12:C16)
-    wsp['C17'] = { t: 'n', f: 'SUM(C12:C16)' };
+    // C16: Gross Pay = SUM(C11:C15)
+    wsp['C16'] = { t: 'n', f: 'SUM(C11:C15)', z: '₱#,##0.00' };
     
-    // F13: PhilHealth = Basic Pay * 0.025
-    wsp['F13'] = { t: 'n', f: 'C12*0.025' };
+    // F12: PhilHealth = Basic Pay * 0.025
+    wsp['F12'] = { t: 'n', f: 'C11*0.025', z: '₱#,##0.00' };
     
-    // F17: Total Deductions = SUM(F12:F14)
-    wsp['F17'] = { t: 'n', f: 'SUM(F12:F14)' };
+    // F16: Total Deductions = SUM(F11:F13)
+    wsp['F16'] = { t: 'n', f: 'SUM(F11:F13)', z: '₱#,##0.00' };
     
-    // B20: Net Pay = Gross Pay - Total Deductions
-    wsp['B20'] = { t: 'n', f: 'C17-F17' };
+    // B19: Net Pay = Gross Pay - Total Deductions
+    wsp['B19'] = { t: 'n', f: 'C16-F16', z: '₱#,##0.00' };
 
     // Employee name placeholder in signature
-    wsp['E25'] = { v: `Employee ${empId}`, t: 's' };
+    wsp['E24'] = { v: `Employee ${empId}`, t: 's' };
 
-    wsp['!ref'] = 'A1:G25';
+    wsp['!ref'] = 'A1:G24';
     wsp['!cols'] = [{ wch: 3 }, { wch: 20 }, { wch: 15 }, { wch: 3 }, { wch: 18 }, { wch: 15 }, { wch: 3 }];
     wsp['!merges'] = [
       { s: { r: 1, c: 1 }, e: { r: 1, c: 5 } },
       { s: { r: 2, c: 1 }, e: { r: 2, c: 5 } },
       { s: { r: 3, c: 1 }, e: { r: 3, c: 5 } },
+      { s: { r: 17, c: 1 }, e: { r: 17, c: 5 } },
       { s: { r: 18, c: 1 }, e: { r: 18, c: 5 } },
-      { s: { r: 19, c: 1 }, e: { r: 19, c: 5 } },
-      { s: { r: 21, c: 1 }, e: { r: 21, c: 2 } },
-      { s: { r: 21, c: 4 }, e: { r: 21, c: 5 } },
-      { s: { r: 22, c: 1 }, e: { r: 23, c: 2 } },
-      { s: { r: 22, c: 4 }, e: { r: 23, c: 5 } },
-      { s: { r: 24, c: 1 }, e: { r: 24, c: 2 } },
-      { s: { r: 24, c: 4 }, e: { r: 24, c: 5 } }
+      { s: { r: 20, c: 1 }, e: { r: 20, c: 2 } },
+      { s: { r: 20, c: 4 }, e: { r: 20, c: 5 } },
+      { s: { r: 21, c: 1 }, e: { r: 22, c: 2 } },
+      { s: { r: 21, c: 4 }, e: { r: 22, c: 5 } },
+      { s: { r: 23, c: 1 }, e: { r: 23, c: 2 } },
+      { s: { r: 23, c: 4 }, e: { r: 23, c: 5 } }
     ];
 
     const payBorder = {
@@ -1337,7 +1323,7 @@ async function generateExcel() {
     wsp['F4'].s = { fill: { fgColor: { rgb: '04AB92' } }, border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, right: { style: 'thin', color: { rgb: '000000' } } } };
 
     // Section headers (EARNINGS, DEDUCTIONS)
-    ['B11', 'E11'].forEach(addr => {
+    ['B10', 'E10'].forEach(addr => {
       if (!wsp[addr]) wsp[addr] = { v: '', t: 's' };
       wsp[addr].s = {
         font: { bold: true, sz: 11, name: 'Arial', color: { rgb: 'FFFFFF' } },
@@ -1348,7 +1334,7 @@ async function generateExcel() {
     });
 
     // GROSS PAY and TOTAL DEDUCTIONS
-    ['B17', 'E17'].forEach(addr => {
+    ['B16', 'E16'].forEach(addr => {
       if (!wsp[addr]) wsp[addr] = { v: '', t: 's' };
       wsp[addr].s = {
         font: { bold: true, sz: 10, name: 'Arial' },
@@ -1357,40 +1343,40 @@ async function generateExcel() {
       };
     });
 
-    // NET PAY (B19) - with outer border
-    wsp['B19'].s = {
+    // NET PAY (B18) - with outer border
+    wsp['B18'].s = {
       font: { bold: true, sz: 12, name: 'Arial', color: { rgb: 'FFFFFF' } },
       fill: { fgColor: { rgb: '04AB92' } },
       alignment: { horizontal: 'center', vertical: 'center' },
       border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, left: { style: 'thin', color: { rgb: '000000' } } }
     };
 
-    ['C19', 'D19', 'E19'].forEach(addr => {
+    ['C18', 'D18', 'E18'].forEach(addr => {
       wsp[addr] = { v: '', t: 's', s: { fill: { fgColor: { rgb: '04AB92' } }, border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } } } };
     });
-    wsp['F19'] = { v: '', t: 's', s: { fill: { fgColor: { rgb: '04AB92' } }, border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, right: { style: 'thin', color: { rgb: '000000' } } } } };
+    wsp['F18'] = { v: '', t: 's', s: { fill: { fgColor: { rgb: '04AB92' } }, border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, right: { style: 'thin', color: { rgb: '000000' } } } } };
 
-    // NET PAY value (B20) - with outer border
-    wsp['B20'].s = {
+    // NET PAY value (B19) - with outer border
+    wsp['B19'].s = {
       font: { bold: true, sz: 18, name: 'Arial', color: { rgb: '04AB92' } },
       alignment: { horizontal: 'center', vertical: 'center' },
       border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, left: { style: 'thin', color: { rgb: '000000' } } },
       numFmt: '₱#,##0.00'
     };
 
-    ['C20', 'D20', 'E20'].forEach(addr => {
+    ['C19', 'D19', 'E19'].forEach(addr => {
       wsp[addr] = { v: '', t: 's', s: { border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } } } };
     });
-    wsp['F20'] = { v: '', t: 's', s: { border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, right: { style: 'thin', color: { rgb: '000000' } } } } };
+    wsp['F19'] = { v: '', t: 's', s: { border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, right: { style: 'thin', color: { rgb: '000000' } } } } };
 
     // Apply borders and styling to all data cells
-    for (let r = 5; r <= 16; r++) {
+    for (let r = 5; r <= 15; r++) {
       for (let c = 1; c <= 5; c++) {
         const addr = XLSX.utils.encode_cell({ r, c });
         if (!wsp[addr]) wsp[addr] = { v: '', t: 's' };
         if (!wsp[addr].s) wsp[addr].s = {};
         
-        if (r === 4 || r === 9 || r === 17) {
+        if (r === 4 || r === 8 || r === 16) {
           wsp[addr].s.border = noBorder;
           if (c === 1) wsp[addr].s.border = { left: { style: 'thin', color: { rgb: '000000' } } };
           if (c === 5) wsp[addr].s.border = { right: { style: 'thin', color: { rgb: '000000' } } };
@@ -1403,14 +1389,14 @@ async function generateExcel() {
         wsp[addr].s.font = { name: 'Arial', sz: 10 };
         wsp[addr].s.alignment = { vertical: 'center', horizontal: (c === 2 || c === 5) ? 'right' : 'left' };
         
-        if ((c === 2 && r >= 12 && r <= 16) || (c === 5 && r >= 12 && r <= 14)) {
+        if ((c === 2 && r >= 11 && r <= 15) || (c === 5 && r >= 11 && r <= 13)) {
           wsp[addr].s.numFmt = '₱#,##0.00';
         }
       }
     }
 
     // Signature section - with outer border (only on edges, no internal borders in merged areas)
-    for (let r = 21; r <= 24; r++) {
+    for (let r = 20; r <= 23; r++) {
       for (let c = 1; c <= 5; c++) {
         const addr = XLSX.utils.encode_cell({ r, c });
         if (!wsp[addr]) wsp[addr] = { v: '', t: 's' };
@@ -1418,7 +1404,7 @@ async function generateExcel() {
         const bdr = {};
         if (c === 1) bdr.left = { style: 'thin', color: { rgb: '000000' } };
         if (c === 5) bdr.right = { style: 'thin', color: { rgb: '000000' } };
-        if (r === 24) bdr.bottom = { style: 'thin', color: { rgb: '000000' } };
+        if (r === 23) bdr.bottom = { style: 'thin', color: { rgb: '000000' } };
         
         wsp[addr].s = { 
           border: Object.keys(bdr).length > 0 ? bdr : noBorder,
@@ -1428,22 +1414,22 @@ async function generateExcel() {
       }
     }
 
-    // Restore labels for Prepared by and Received by (row 22)
-    wsp['B22'].v = 'Prepared by:';
-    wsp['E22'].v = 'Received by:';
+    // Restore labels for Prepared by and Received by (row 21)
+    wsp['B21'].v = 'Prepared by:';
+    wsp['E21'].v = 'Received by:';
 
     // Merged signature cells - remove all internal borders
-    // B23:C24 merged area (HR signature)
-    wsp['B23'].s.border = { left: { style: 'thin', color: { rgb: '000000' } } };
-    wsp['C23'].s.border = noBorder;
-    wsp['B24'].s.border = { left: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } };
-    wsp['C24'].s.border = { bottom: { style: 'thin', color: { rgb: '000000' } } };
+    // B22:C23 merged area (HR signature)
+    wsp['B22'].s.border = { left: { style: 'thin', color: { rgb: '000000' } } };
+    wsp['C22'].s.border = noBorder;
+    wsp['B23'].s.border = { left: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } };
+    wsp['C23'].s.border = { bottom: { style: 'thin', color: { rgb: '000000' } } };
     
-    // E23:F24 merged area (Employee signature)
-    wsp['E23'].s.border = noBorder;
-    wsp['F23'].s.border = { right: { style: 'thin', color: { rgb: '000000' } } };
-    wsp['E24'].s.border = { bottom: { style: 'thin', color: { rgb: '000000' } } };
-    wsp['F24'].s.border = { right: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } };
+    // E22:F23 merged area (Employee signature)
+    wsp['E22'].s.border = noBorder;
+    wsp['F22'].s.border = { right: { style: 'thin', color: { rgb: '000000' } } };
+    wsp['E23'].s.border = { bottom: { style: 'thin', color: { rgb: '000000' } } };
+    wsp['F23'].s.border = { right: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } };
 
     XLSX.utils.book_append_sheet(wb, wsp, `EMP_${empId}_Payslip`);
     done++;
@@ -1456,13 +1442,11 @@ async function generateExcel() {
 
   XLSX.writeFile(wb, 'attendance_log.xlsx');
 
-  setTimeout(() => {
-    progressWrap.style.display = 'none';
-    const banner = document.getElementById('successBanner');
-    banner.style.display = 'block';
-    document.getElementById('successDetail').textContent =
-      `${empIds.length} employee sheets + 1 Missing Log Report sheet · ${missingLogs.length} missing log(s) flagged`;
-  }, 400);
+  progressWrap.style.display = 'none';
+  const banner = document.getElementById('successBanner');
+  banner.style.display = 'block';
+  document.getElementById('successDetail').textContent =
+    `${empIds.length} employee sheets + 1 Missing Log Report sheet · ${missingLogs.length} missing log(s) flagged`;
 }
 </script>
 </body>

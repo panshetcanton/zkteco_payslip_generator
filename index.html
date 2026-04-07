@@ -803,9 +803,9 @@
       <!-- Employee List -->
       <div class="section-title">📋 Enrolled Employees (<span id="empCount">0</span>)</div>
       <div class="export-buttons">
-        <button class="btn-secondary" onclick="exportEmployees()">📤 Export CSV</button>
-        <button class="btn-secondary" onclick="document.getElementById('importFile').click()">📥 Import CSV</button>
-        <input type="file" id="importFile" accept=".csv,.json" style="display:none" onchange="importEmployees(event)">
+        <button class="btn-secondary" onclick="exportEmployees()">📤 Export Excel</button>
+        <button class="btn-secondary" onclick="document.getElementById('importFile').click()">📥 Import Excel</button>
+        <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none" onchange="importEmployees(event)">
       </div>
       <div class="emp-table" id="employeeList"></div>
     </div>
@@ -1011,96 +1011,190 @@ function exportEmployees() {
     return;
   }
 
-  // Create CSV content
+  // Create Excel workbook
+  const wb = XLSX.utils.book_new();
+  
+  // Prepare data array with title
+  const title = [['EMPLOYEE MASTER LIST']];
   const headers = ['Employee ID', 'Name', 'Daily Basic Pay', 'Hourly Rate', 'Allowance', 'SSS', 'PhilHealth Rate (%)', 'Pag-IBIG'];
-  let csv = headers.join(',') + '\n';
+  const data = [
+    ...title,
+    [],
+    headers
+  ];
   
   for (const id of empIds) {
     const e = employees[id];
-    const row = [
+    data.push([
       id,
-      `"${e.name}"`, // Quote name in case it has commas
+      e.name,
       e.basicPay,
       e.hourlyRate,
       e.allowance,
       e.sss,
       e.philhealthRate,
       e.pagibig
-    ];
-    csv += row.join(',') + '\n';
+    ]);
   }
-
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'employees_backup.csv';
-  a.click();
-  URL.revokeObjectURL(url);
+  
+  // Create worksheet
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  
+  // Set column widths
+  ws['!cols'] = [
+    { wch: 15 },  // Employee ID
+    { wch: 25 },  // Name
+    { wch: 18 },  // Daily Basic Pay
+    { wch: 15 },  // Hourly Rate
+    { wch: 12 },  // Allowance
+    { wch: 12 },  // SSS
+    { wch: 20 },  // PhilHealth Rate (%)
+    { wch: 12 }   // Pag-IBIG
+  ];
+  
+  // Merge title cells
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }];
+  
+  const cellBorder = {
+    top: { style: 'thin', color: { rgb: '000000' } },
+    bottom: { style: 'thin', color: { rgb: '000000' } },
+    left: { style: 'thin', color: { rgb: '000000' } },
+    right: { style: 'thin', color: { rgb: '000000' } }
+  };
+  
+  // Style title row (row 0)
+  ws['A1'].s = {
+    font: { bold: true, sz: 14, name: 'Arial', color: { rgb: 'FFFFFF' } },
+    fill: { fgColor: { rgb: '1A4FA0' } },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: cellBorder
+  };
+  
+  // Fill merged title cells with same style
+  for (let c = 1; c < headers.length; c++) {
+    const cellAddr = XLSX.utils.encode_cell({ r: 0, c });
+    if (!ws[cellAddr]) ws[cellAddr] = { v: '', t: 's' };
+    ws[cellAddr].s = {
+      fill: { fgColor: { rgb: '1A4FA0' } },
+      border: cellBorder
+    };
+  }
+  
+  // Style header row (row 2)
+  const headerStyle = {
+    font: { bold: true, color: { rgb: 'FFFFFF' }, name: 'Arial', sz: 10 },
+    fill: { fgColor: { rgb: '04AB92' } },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: cellBorder
+  };
+  
+  for (let c = 0; c < headers.length; c++) {
+    const cellAddr = XLSX.utils.encode_cell({ r: 2, c });
+    if (!ws[cellAddr]) ws[cellAddr] = { v: '', t: 's' };
+    ws[cellAddr].s = headerStyle;
+  }
+  
+  // Style data rows (starting from row 3)
+  const dataBorder = {
+    top: { style: 'thin', color: { rgb: 'b2e0d8' } },
+    bottom: { style: 'thin', color: { rgb: 'b2e0d8' } },
+    left: { style: 'thin', color: { rgb: 'b2e0d8' } },
+    right: { style: 'thin', color: { rgb: 'b2e0d8' } }
+  };
+  
+  for (let r = 0; r < empIds.length; r++) {
+    const rowIndex = r + 3; // Data starts at row 3 (0-indexed)
+    const bg = r % 2 === 0 ? 'FFFFFF' : 'F0FAF8'; // Alternating white and light green
+    
+    for (let c = 0; c < headers.length; c++) {
+      const cellAddr = XLSX.utils.encode_cell({ r: rowIndex, c });
+      if (!ws[cellAddr]) ws[cellAddr] = { v: '', t: 's' };
+      
+      ws[cellAddr].s = {
+        font: { name: 'Arial', sz: 10, color: { rgb: '1a2a28' } },
+        fill: { fgColor: { rgb: bg } },
+        alignment: { horizontal: c === 1 ? 'left' : 'center', vertical: 'center' },
+        border: dataBorder
+      };
+      
+      // Format currency columns (Daily Basic Pay, Hourly Rate, Allowance, SSS, Pag-IBIG)
+      if (c === 2 || c === 3 || c === 4 || c === 5 || c === 7) {
+        ws[cellAddr].z = '₱#,##0.00';
+      }
+      // Format percentage column (PhilHealth Rate)
+      if (c === 6) {
+        ws[cellAddr].z = '0.00';
+      }
+    }
+  }
+  
+  // Set reference range
+  ws['!ref'] = `A1:H${empIds.length + 3}`;
+  
+  // Add worksheet to workbook
+  XLSX.utils.book_append_sheet(wb, ws, 'Employees');
+  
+  // Download Excel file
+  XLSX.writeFile(wb, 'employees_backup.xlsx');
 }
 
 function importEmployees(e) {
   const file = e.target.files[0];
   if (!file) return;
   
+  // Only handle Excel files (.xlsx, .xls)
+  if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+    alert('Please select an Excel file (.xlsx or .xls)');
+    e.target.value = '';
+    return;
+  }
+  
   const reader = new FileReader();
   reader.onload = ev => {
     try {
-      const content = ev.target.result;
+      const data = new Uint8Array(ev.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      
+      // Read first sheet
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      console.log('Excel rows:', jsonData.length);
+      console.log('Header:', jsonData[0]);
+      
       let imported = {};
       
-      // Check if CSV or JSON
-      if (file.name.endsWith('.csv')) {
-        // Parse CSV
-        const lines = content.trim().split('\n');
-        if (lines.length < 2) {
-          alert('Invalid CSV file');
-          return;
+      // Skip header row (index 0)
+      for (let i = 1; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        if (!row || row.length < 8) {
+          console.log(`Skipping row ${i} - insufficient columns`);
+          continue;
         }
         
-        // Skip header line
-        for (let i = 1; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (!line) continue;
-          
-          // Parse CSV line (handle quoted values)
-          const values = [];
-          let current = '';
-          let inQuotes = false;
-          
-          for (let j = 0; j < line.length; j++) {
-            const char = line[j];
-            if (char === '"') {
-              inQuotes = !inQuotes;
-            } else if (char === ',' && !inQuotes) {
-              values.push(current.trim());
-              current = '';
-            } else {
-              current += char;
-            }
-          }
-          values.push(current.trim());
-          
-          if (values.length >= 8) {
-            const empId = values[0];
-            imported[empId] = {
-              name: values[1].replace(/^"|"$/g, ''), // Remove quotes
-              basicPay: parseFloat(values[2]) || 0,
-              hourlyRate: parseFloat(values[3]) || 0,
-              allowance: parseFloat(values[4]) || 0,
-              sss: parseFloat(values[5]) || 0,
-              philhealthRate: parseFloat(values[6]) || 5,
-              pagibig: parseFloat(values[7]) || 0
-            };
-          }
+        const empId = String(row[0] || '').trim();
+        if (!empId) {
+          console.log(`Skipping row ${i} - empty employee ID`);
+          continue;
         }
-      } else {
-        // Parse JSON
-        imported = JSON.parse(content);
+        
+        imported[empId] = {
+          name: String(row[1] || '').trim(),
+          basicPay: parseFloat(row[2]) || 0,
+          hourlyRate: parseFloat(row[3]) || 0,
+          allowance: parseFloat(row[4]) || 0,
+          sss: parseFloat(row[5]) || 0,
+          philhealthRate: parseFloat(row[6]) || 5,
+          pagibig: parseFloat(row[7]) || 0
+        };
+        console.log(`Imported employee ${empId}:`, imported[empId]);
       }
       
+      console.log('Total imported:', Object.keys(imported).length);
+      
       if (Object.keys(imported).length === 0) {
-        alert('No valid employee data found in file');
+        alert('No valid employee data found in Excel file. Check browser console (F12) for details.');
         return;
       }
       
@@ -1111,10 +1205,11 @@ function importEmployees(e) {
         alert('Import successful!');
       }
     } catch (err) {
-      alert('Invalid file format: ' + err.message);
+      console.error('Excel import error:', err);
+      alert('Error reading Excel file: ' + err.message + '\nCheck browser console (F12) for details.');
     }
   };
-  reader.readAsText(file);
+  reader.readAsArrayBuffer(file);
   e.target.value = '';
 }
 

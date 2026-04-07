@@ -705,12 +705,15 @@ function renderLateTable() {
       if (lateMins > 0) {
         offenseCount[empId]++;
         const d = new Date(date);
-        lateRows.push([empId, date, DAYS[d.getDay()], rec.timeIn, lateMins, offenseCount[empId]]);
+        const lateDisplay = lateMins >= 60 
+          ? `${Math.floor(lateMins / 60)}h ${lateMins % 60}m`
+          : `${lateMins}m`;
+        lateRows.push([empId, date, DAYS[d.getDay()], rec.timeIn, lateDisplay, offenseCount[empId]]);
       }
     }
   }
   if (lateRows.length === 0) return '<div style="padding:40px;text-align:center;color:#04AB92;font-family:DM Mono,monospace">✓ No late entries found!</div>';
-  let html = '<table><thead><tr><th>Employee ID</th><th>Date</th><th>Day</th><th>Time In</th><th>Late (min)</th><th>Offense #</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>Employee ID</th><th>Date</th><th>Day</th><th>Time In</th><th>Late</th><th>Offense #</th></tr></thead><tbody>';
   for (const row of lateRows) {
     html += `<tr>
       <td>${row[0]}</td><td>${row[1]}</td><td>${row[2]}</td><td>${row[3]}</td>
@@ -1005,23 +1008,27 @@ function generateExcel() {
       if (!rec || !rec.timeIn) continue;
       const [ih, im] = rec.timeIn.split(':').map(Number);
       const inMins = ih * 60 + im;
-      const shiftMins = 9 * 60;
+      const shiftMins = 8 * 60;
       const lateMins = inMins - shiftMins;
       if (lateMins > 0) {
         const d = new Date(date);
-        lateRows.push([empId, date, DAYS[d.getDay()], rec.timeIn, lateMins]);
+        // Convert to hours and minutes if >= 60 minutes
+        const lateDisplay = lateMins >= 60 
+          ? `${Math.floor(lateMins / 60)}h ${lateMins % 60}m`
+          : `${lateMins}m`;
+        lateRows.push([empId, date, DAYS[d.getDay()], rec.timeIn, lateDisplay]);
       }
     }
   }
 
-  const lateCols = ['Employee ID', 'Date', 'Day', 'Time In', 'Late (min)'];
+  const lateCols = ['Employee ID', 'Date', 'Day', 'Time In', 'Late'];
   const ws3 = XLSX.utils.aoa_to_sheet([['Late Report'], [], lateCols]);
 
   lateRows.forEach((row, ri) => {
     const r = ri + 3;
     row.forEach((val, c) => {
       const addr = XLSX.utils.encode_cell({ r, c });
-      ws3[addr] = { v: val, t: c === 4 ? 'n' : 's' };
+      ws3[addr] = { v: val, t: 's' };
     });
   });
 

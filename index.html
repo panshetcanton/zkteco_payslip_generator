@@ -1127,6 +1127,26 @@ uploadZone.addEventListener('drop', e => {
 fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
 
 function handleFile(file) {
+  // Validate pay period is filled before processing DAT file
+  const payPeriod = document.getElementById('payPeriod')?.value.trim();
+  const payDate = document.getElementById('payDate')?.value.trim();
+  
+  if (!payPeriod) {
+    alert('Please enter Pay Period before uploading DAT file.');
+    document.getElementById('payPeriod').focus();
+    // Reset file input
+    document.getElementById('fileInput').value = '';
+    return;
+  }
+  
+  if (!payDate) {
+    alert('Please enter Pay Date before uploading DAT file.');
+    document.getElementById('payDate').focus();
+    // Reset file input
+    document.getElementById('fileInput').value = '';
+    return;
+  }
+  
   const reader = new FileReader();
   reader.onload = e => {
     processDAT(e.target.result);

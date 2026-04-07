@@ -664,14 +664,18 @@
     <div style="font-size: 14px; font-weight: 700; color: var(--accent3); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
       📅 Pay Period Settings
     </div>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
       <div>
-        <label style="font-size: 12px; font-weight: 600; color: var(--muted); font-family: 'DM Mono', monospace; display: block; margin-bottom: 6px;">Pay Period</label>
-        <input type="text" id="payPeriod" placeholder="e.g., Jan 1-30, 1999" value="" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 14px;">
+        <label style="font-size: 12px; font-weight: 600; color: var(--muted); font-family: 'DM Mono', monospace; display: block; margin-bottom: 6px;">Pay Period Start</label>
+        <input type="date" id="payPeriodStart" value="" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 14px;">
+      </div>
+      <div>
+        <label style="font-size: 12px; font-weight: 600; color: var(--muted); font-family: 'DM Mono', monospace; display: block; margin-bottom: 6px;">Pay Period End</label>
+        <input type="date" id="payPeriodEnd" value="" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 14px;">
       </div>
       <div>
         <label style="font-size: 12px; font-weight: 600; color: var(--muted); font-family: 'DM Mono', monospace; display: block; margin-bottom: 6px;">Pay Date</label>
-        <input type="text" id="payDate" placeholder="e.g., Jan 01, 1999" value="" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 14px;">
+        <input type="date" id="payDate" value="" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 14px;">
       </div>
     </div>
   </div>
@@ -824,10 +828,16 @@ let editingEmpId = null;
 
 // ─── Employee Management ──────────────────────────────────────────────────────
 function parseDateRange(payPeriod) {
-  // Parse pay period like "March 1-15, 2026" or "2026-03-01 to 2026-03-15"
+  // Parse pay period like "March 1-15, 2026" or "2026-03-01 to 2026-03-15" or "2026-03-13"
   if (!payPeriod) return null;
   
   try {
+    // Try format: "2026-03-13" (single date - treat as both start and end)
+    const singleDateMatch = payPeriod.match(/^(\d{4}-\d{2}-\d{2})$/);
+    if (singleDateMatch) {
+      return { startDate: singleDateMatch[1], endDate: singleDateMatch[1] };
+    }
+    
     // Try format: "March 1-15, 2026"
     const match1 = payPeriod.match(/(\w+)\s+(\d+)-(\d+),\s+(\d{4})/);
     if (match1) {
@@ -835,7 +845,10 @@ function parseDateRange(payPeriod) {
       const monthMap = {
         'january': '01', 'february': '02', 'march': '03', 'april': '04',
         'may': '05', 'june': '06', 'july': '07', 'august': '08',
-        'september': '09', 'october': '10', 'november': '11', 'december': '12'
+        'september': '09', 'october': '10', 'november': '11', 'december': '12',
+        'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+        'jun': '06', 'jul': '07', 'aug': '08', 'sep': '09',
+        'oct': '10', 'nov': '11', 'dec': '12'
       };
       const monthNum = monthMap[month.toLowerCase()];
       if (monthNum) {
@@ -1128,19 +1141,21 @@ fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.
 
 function handleFile(file) {
   // Validate pay period is filled before processing DAT file
-  const payPeriod = document.getElementById('payPeriod')?.value.trim();
+  const payPeriodStart = document.getElementById('payPeriodStart')?.value.trim();
+  const payPeriodEnd = document.getElementById('payPeriodEnd')?.value.trim();
   const payDate = document.getElementById('payDate')?.value.trim();
   
-  if (!payPeriod) {
-    alert('Please enter Pay Period before uploading DAT file.');
-    document.getElementById('payPeriod').focus();
+  if (!payPeriodStart || !payPeriodEnd) {
+    alert('Please select Pay Period Start and End dates before uploading DAT file.');
+    if (!payPeriodStart) document.getElementById('payPeriodStart').focus();
+    else document.getElementById('payPeriodEnd').focus();
     // Reset file input
     document.getElementById('fileInput').value = '';
     return;
   }
   
   if (!payDate) {
-    alert('Please enter Pay Date before uploading DAT file.');
+    alert('Please select Pay Date before uploading DAT file.');
     document.getElementById('payDate').focus();
     // Reset file input
     document.getElementById('fileInput').value = '';
@@ -1186,7 +1201,22 @@ function processDAT(text) {
   // Collect all unique dates
   const dateSet = new Set();
   for (const emp of Object.values(raw)) for (const d of Object.keys(emp)) dateSet.add(d);
-  allDates = Array.from(dateSet).sort();
+  let tempDates = Array.from(dateSet).sort();
+  
+  // Filter dates based on pay period
+  const payPeriodStart = document.getElementById('payPeriodStart')?.value || '';
+  const payPeriodEnd = document.getElementById('payPeriodEnd')?.value || '';
+  console.log('Pay Period Start:', payPeriodStart);
+  console.log('Pay Period End:', payPeriodEnd);
+  
+  if (payPeriodStart && payPeriodEnd) {
+    allDates = tempDates.filter(date => date >= payPeriodStart && date <= payPeriodEnd);
+  } else {
+    allDates = tempDates;
+  }
+  
+  console.log('All dates before filter:', tempDates);
+  console.log('Filtered dates:', allDates);
 
   parsedData = {};
   missingLogs = [];
@@ -1195,7 +1225,10 @@ function processDAT(text) {
     parsedData[empId] = {};
     for (const date of allDates) {
       const rec = dates[date];
-      if (!rec) continue;
+      if (!rec) {
+        // Employee has no record for this date in the filtered range - skip
+        continue;
+      }
       const timeIn = rec.in;
       const timeOut = rec.out;
       parsedData[empId][date] = { timeIn, timeOut };
@@ -1446,11 +1479,8 @@ function roundHalf(hrs) {
 }
 
 function buildAttendanceRows(empId) {
-  const payPeriod = document.getElementById('payPeriod')?.value || '';
-  const datesToUse = payPeriod ? filterDatesByPeriod(allDates, payPeriod) : allDates;
-  
   const rows = [];
-  for (const date of datesToUse) {
+  for (const date of allDates) {
     const d = new Date(date);
     const dayName = DAYS[d.getDay()];
     const rec = parsedData[empId]?.[date];
@@ -1489,17 +1519,19 @@ function buildAttendanceRows(empId) {
 // ─── Excel Generation ─────────────────────────────────────────────────────────
 function generateExcel() {
   // Validate pay period is filled
-  const payPeriod = document.getElementById('payPeriod')?.value.trim();
+  const payPeriodStart = document.getElementById('payPeriodStart')?.value.trim();
+  const payPeriodEnd = document.getElementById('payPeriodEnd')?.value.trim();
   const payDate = document.getElementById('payDate')?.value.trim();
   
-  if (!payPeriod) {
-    alert('Please enter Pay Period before generating Excel file.');
-    document.getElementById('payPeriod').focus();
+  if (!payPeriodStart || !payPeriodEnd) {
+    alert('Please select Pay Period Start and End dates before generating Excel file.');
+    if (!payPeriodStart) document.getElementById('payPeriodStart').focus();
+    else document.getElementById('payPeriodEnd').focus();
     return;
   }
   
   if (!payDate) {
-    alert('Please enter Pay Date before generating Excel file.');
+    alert('Please select Pay Date before generating Excel file.');
     document.getElementById('payDate').focus();
     return;
   }
@@ -1834,7 +1866,9 @@ function generateExcel() {
     const philhealthRate = empData ? empData.philhealthRate : 5;
     
     // Get pay period settings
-    const payPeriod = document.getElementById('payPeriod')?.value || '';
+    const payPeriodStart = document.getElementById('payPeriodStart')?.value || '';
+    const payPeriodEnd = document.getElementById('payPeriodEnd')?.value || '';
+    const payPeriod = payPeriodStart && payPeriodEnd ? `${payPeriodStart} - ${payPeriodEnd}` : '';
     const payDate = document.getElementById('payDate')?.value || '';
 
     const payslipData = [

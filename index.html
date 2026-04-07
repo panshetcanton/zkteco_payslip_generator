@@ -1363,8 +1363,33 @@ function renderPayslipPreview(empId) {
   const empData = getEmployeeData(empId);
   
   // Get pay period settings
-  const payPeriod = document.getElementById('payPeriod')?.value || '';
-  const payDate = document.getElementById('payDate')?.value || '';
+  const payPeriodStart = document.getElementById('payPeriodStart')?.value || '';
+  const payPeriodEnd = document.getElementById('payPeriodEnd')?.value || '';
+  
+  // Format pay period as "March 1-15, 2026"
+  let payPeriod = '';
+  if (payPeriodStart && payPeriodEnd) {
+    const startDate = new Date(payPeriodStart);
+    const endDate = new Date(payPeriodEnd);
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const startDay = startDate.getDate();
+    const endDay = endDate.getDate();
+    const month = monthNames[startDate.getMonth()];
+    const year = startDate.getFullYear();
+    payPeriod = `${month} ${startDay}-${endDay}, ${year}`;
+  }
+  
+  // Format pay date as "March 15, 2026"
+  const payDateRaw = document.getElementById('payDate')?.value || '';
+  let payDate = '';
+  if (payDateRaw) {
+    const date = new Date(payDateRaw);
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const day = date.getDate();
+    const month = monthNames[date.getMonth()];
+    const year = date.getFullYear();
+    payDate = `${month} ${day}, ${year}`;
+  }
   
   // Calculate totals from attendance data
   let totalHoursWorked = 0;
@@ -1868,8 +1893,31 @@ function generateExcel() {
     // Get pay period settings
     const payPeriodStart = document.getElementById('payPeriodStart')?.value || '';
     const payPeriodEnd = document.getElementById('payPeriodEnd')?.value || '';
-    const payPeriod = payPeriodStart && payPeriodEnd ? `${payPeriodStart} - ${payPeriodEnd}` : '';
-    const payDate = document.getElementById('payDate')?.value || '';
+    
+    // Format pay period as "March 1-15, 2026"
+    let payPeriod = '';
+    if (payPeriodStart && payPeriodEnd) {
+      const startDate = new Date(payPeriodStart);
+      const endDate = new Date(payPeriodEnd);
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const startDay = startDate.getDate();
+      const endDay = endDate.getDate();
+      const month = monthNames[startDate.getMonth()];
+      const year = startDate.getFullYear();
+      payPeriod = `${month} ${startDay}-${endDay}, ${year}`;
+    }
+    
+    // Format pay date as "March 15, 2026"
+    const payDateRaw = document.getElementById('payDate')?.value || '';
+    let payDate = '';
+    if (payDateRaw) {
+      const date = new Date(payDateRaw);
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const day = date.getDate();
+      const month = monthNames[date.getMonth()];
+      const year = date.getFullYear();
+      payDate = `${month} ${day}, ${year}`;
+    }
 
     const payslipData = [
       [],

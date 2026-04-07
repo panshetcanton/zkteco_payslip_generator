@@ -447,9 +447,200 @@
     margin: 2px;
   }
 
+  /* Employee Management Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+  }
+
+  .modal-overlay.active { display: flex; align-items: center; justify-content: center; }
+
+  .modal-content {
+    background: var(--surface);
+    border-radius: 20px;
+    width: 90%;
+    max-width: 900px;
+    max-height: 85vh;
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-header {
+    background: linear-gradient(135deg, #1A4FA0, #04AB92);
+    color: white;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .modal-header h2 { font-size: 20px; font-weight: 700; }
+
+  .modal-close {
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 18px;
+    transition: all 0.2s;
+  }
+
+  .modal-close:hover { background: rgba(255,255,255,0.3); }
+
+  .modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .form-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .form-group input {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+
+  .form-group input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(4,171,146,0.1);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #1A4FA0, #04AB92);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(4,171,146,0.3); }
+
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-secondary:hover { background: var(--border); }
+
+  .btn-danger {
+    background: var(--accent2);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-danger:hover { background: #a01b20; }
+
+  .btn-manage {
+    background: var(--surface);
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-bottom: 24px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-manage:hover {
+    background: var(--accent);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(4,171,146,0.2);
+  }
+
+  .emp-table {
+    margin-top: 24px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .emp-table table { font-size: 11px; }
+  .emp-table td { padding: 10px 12px; }
+  .emp-table .actions { display: flex; gap: 8px; }
+
+  .section-divider {
+    border: none;
+    border-top: 2px solid var(--border);
+    margin: 24px 0;
+  }
+
+  .section-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent3);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .export-buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
   /* Responsive */
   @media(max-width: 600px) {
     .stats-bar { grid-template-columns: repeat(2,1fr); }
+    .form-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -462,6 +653,28 @@
       <div class="subtitle">// .dat → Excel · Attendance Log + Late Report + Missing Log Report</div>
     </div>
   </header>
+
+  <!-- Employee Management Button -->
+  <button class="btn-manage" onclick="openEmployeeModal()">
+    <span>👥</span> Manage Employees
+  </button>
+
+  <!-- Pay Period Settings -->
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 24px;">
+    <div style="font-size: 14px; font-weight: 700; color: var(--accent3); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+      📅 Pay Period Settings
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+      <div>
+        <label style="font-size: 12px; font-weight: 600; color: var(--muted); font-family: 'DM Mono', monospace; display: block; margin-bottom: 6px;">Pay Period</label>
+        <input type="text" id="payPeriod" placeholder="e.g., Jan 1-30, 1999" value="" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 14px;">
+      </div>
+      <div>
+        <label style="font-size: 12px; font-weight: 600; color: var(--muted); font-family: 'DM Mono', monospace; display: block; margin-bottom: 6px;">Pay Date</label>
+        <input type="text" id="payDate" placeholder="e.g., Jan 01, 1999" value="" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 14px;">
+      </div>
+    </div>
+  </div>
 
   <!-- Upload Zone -->
   <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
@@ -533,6 +746,68 @@
   </div>
 </div>
 
+<!-- Employee Management Modal -->
+<div class="modal-overlay" id="employeeModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>👥 Employee Management</h2>
+      <button class="modal-close" onclick="closeEmployeeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Enrollment Form -->
+      <div class="section-title">➕ Enroll New Employee</div>
+      <form id="enrollForm" onsubmit="enrollEmployee(event)">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Employee ID *</label>
+            <input type="text" id="empId" required>
+          </div>
+          <div class="form-group">
+            <label>Full Name *</label>
+            <input type="text" id="empName" required>
+          </div>
+          <div class="form-group">
+            <label>Daily Basic Pay (₱) *</label>
+            <input type="number" id="empBasicPay" step="0.01" required oninput="autoCalculateHourlyRate()">
+          </div>
+          <div class="form-group">
+            <label>Hourly Rate (₱) *</label>
+            <input type="number" id="empHourlyRate" step="0.01" required>
+          </div>
+          <div class="form-group">
+            <label>Allowance (₱)</label>
+            <input type="number" id="empAllowance" step="0.01" value="0">
+          </div>
+          <div class="form-group">
+            <label>SSS (₱) *</label>
+            <input type="number" id="empSSS" step="0.01" required>
+          </div>
+          <div class="form-group">
+            <label>PhilHealth Rate (%) *</label>
+            <input type="number" id="empPhilHealthRate" step="0.01" value="5" required>
+          </div>
+          <div class="form-group">
+            <label>Pag-IBIG (₱) *</label>
+            <input type="number" id="empPagibig" step="0.01" required>
+          </div>
+        </div>
+        <button type="submit" class="btn-primary">💾 Save Employee</button>
+      </form>
+
+      <hr class="section-divider">
+
+      <!-- Employee List -->
+      <div class="section-title">📋 Enrolled Employees (<span id="empCount">0</span>)</div>
+      <div class="export-buttons">
+        <button class="btn-secondary" onclick="exportEmployees()">📤 Export CSV</button>
+        <button class="btn-secondary" onclick="document.getElementById('importFile').click()">📥 Import CSV</button>
+        <input type="file" id="importFile" accept=".csv,.json" style="display:none" onchange="importEmployees(event)">
+      </div>
+      <div class="emp-table" id="employeeList"></div>
+    </div>
+  </div>
+</div>
+
 <script>
 const COLS = ['Date','Day','Time In','Time Out','Duration','Hours Worked','OT (hrs)'];
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -544,6 +819,298 @@ let missingLogs = []; // [{empId, date, day, issue}]
 let allDates = [];
 let activeTab = 'attendance';
 let activeEmp = null;
+let employees = {}; // empId -> {name, basicPay, hourlyRate, allowance, sss, philhealthRate, pagibig}
+let editingEmpId = null;
+
+// ─── Employee Management ──────────────────────────────────────────────────────
+function parseDateRange(payPeriod) {
+  // Parse pay period like "March 1-15, 2026" or "2026-03-01 to 2026-03-15"
+  if (!payPeriod) return null;
+  
+  try {
+    // Try format: "March 1-15, 2026"
+    const match1 = payPeriod.match(/(\w+)\s+(\d+)-(\d+),\s+(\d{4})/);
+    if (match1) {
+      const [, month, startDay, endDay, year] = match1;
+      const monthMap = {
+        'january': '01', 'february': '02', 'march': '03', 'april': '04',
+        'may': '05', 'june': '06', 'july': '07', 'august': '08',
+        'september': '09', 'october': '10', 'november': '11', 'december': '12'
+      };
+      const monthNum = monthMap[month.toLowerCase()];
+      if (monthNum) {
+        const startDate = `${year}-${monthNum}-${startDay.padStart(2, '0')}`;
+        const endDate = `${year}-${monthNum}-${endDay.padStart(2, '0')}`;
+        return { startDate, endDate };
+      }
+    }
+    
+    // Try format: "2026-03-01 to 2026-03-15" or "2026-03-01 - 2026-03-15"
+    const match2 = payPeriod.match(/(\d{4}-\d{2}-\d{2})\s*(?:to|-)\s*(\d{4}-\d{2}-\d{2})/);
+    if (match2) {
+      return { startDate: match2[1], endDate: match2[2] };
+    }
+    
+    // Try format: "03/01/2026 - 03/15/2026"
+    const match3 = payPeriod.match(/(\d{2})\/(\d{2})\/(\d{4})\s*-\s*(\d{2})\/(\d{2})\/(\d{4})/);
+    if (match3) {
+      const startDate = `${match3[3]}-${match3[1]}-${match3[2]}`;
+      const endDate = `${match3[6]}-${match3[4]}-${match3[5]}`;
+      return { startDate, endDate };
+    }
+  } catch (e) {
+    console.error('Error parsing date range:', e);
+  }
+  
+  return null;
+}
+
+function filterDatesByPeriod(dates, payPeriod) {
+  const range = parseDateRange(payPeriod);
+  if (!range) return dates; // If can't parse, return all dates
+  
+  const { startDate, endDate } = range;
+  return dates.filter(date => date >= startDate && date <= endDate);
+}
+
+function autoCalculateHourlyRate() {
+  const dailyPay = parseFloat(document.getElementById('empBasicPay').value);
+  if (dailyPay && dailyPay > 0) {
+    const hourlyRate = dailyPay / 8;
+    document.getElementById('empHourlyRate').value = hourlyRate.toFixed(2);
+  }
+}
+
+function loadEmployees() {
+  const stored = localStorage.getItem('zkteco_employees');
+  if (stored) {
+    try {
+      employees = JSON.parse(stored);
+    } catch (e) {
+      employees = {};
+    }
+  }
+}
+
+function saveEmployees() {
+  localStorage.setItem('zkteco_employees', JSON.stringify(employees));
+}
+
+function openEmployeeModal() {
+  document.getElementById('employeeModal').classList.add('active');
+  renderEmployeeList();
+}
+
+function closeEmployeeModal() {
+  document.getElementById('employeeModal').classList.remove('active');
+  clearForm();
+}
+
+function clearForm() {
+  document.getElementById('enrollForm').reset();
+  editingEmpId = null;
+}
+
+function enrollEmployee(e) {
+  e.preventDefault();
+  const empId = document.getElementById('empId').value.trim();
+  const name = document.getElementById('empName').value.trim();
+  const basicPay = parseFloat(document.getElementById('empBasicPay').value);
+  const hourlyRate = parseFloat(document.getElementById('empHourlyRate').value);
+  const allowance = parseFloat(document.getElementById('empAllowance').value) || 0;
+  const sss = parseFloat(document.getElementById('empSSS').value);
+  const philhealthRate = parseFloat(document.getElementById('empPhilHealthRate').value);
+  const pagibig = parseFloat(document.getElementById('empPagibig').value);
+
+  if (!editingEmpId && employees[empId]) {
+    alert(`Employee ID ${empId} already exists. Use Edit to modify.`);
+    return;
+  }
+
+  const targetId = editingEmpId || empId;
+  employees[targetId] = { name, basicPay, hourlyRate, allowance, sss, philhealthRate, pagibig };
+  saveEmployees();
+  
+  alert(editingEmpId ? 'Employee updated!' : 'Employee enrolled!');
+  
+  // Refresh the page
+  window.location.reload();
+}
+
+function editEmployee(empId) {
+  const emp = employees[empId];
+  if (!emp) return;
+  editingEmpId = empId;
+  document.getElementById('empId').value = empId;
+  document.getElementById('empId').disabled = true;
+  document.getElementById('empName').value = emp.name;
+  document.getElementById('empBasicPay').value = emp.basicPay;
+  document.getElementById('empHourlyRate').value = emp.hourlyRate;
+  document.getElementById('empAllowance').value = emp.allowance;
+  document.getElementById('empSSS').value = emp.sss;
+  document.getElementById('empPhilHealthRate').value = emp.philhealthRate;
+  document.getElementById('empPagibig').value = emp.pagibig;
+  document.getElementById('empId').disabled = false;
+}
+
+function deleteEmployee(empId) {
+  if (!confirm(`Delete employee ${empId}?`)) return;
+  delete employees[empId];
+  saveEmployees();
+  renderEmployeeList();
+}
+
+function renderEmployeeList() {
+  const list = document.getElementById('employeeList');
+  const empIds = Object.keys(employees);
+  document.getElementById('empCount').textContent = empIds.length;
+
+  if (empIds.length === 0) {
+    list.innerHTML = '<div style="padding:40px;text-align:center;color:#999;font-family:DM Mono,monospace">No employees enrolled yet</div>';
+    return;
+  }
+
+  let html = '<table><thead><tr><th>ID</th><th>Name</th><th>Daily Pay</th><th>Hourly</th><th>SSS</th><th>PhilHealth %</th><th>Pag-IBIG</th><th>Actions</th></tr></thead><tbody>';
+  for (const id of empIds) {
+    const e = employees[id];
+    html += `<tr>
+      <td><strong>${id}</strong></td>
+      <td>${e.name}</td>
+      <td>₱${e.basicPay.toFixed(2)}</td>
+      <td>₱${e.hourlyRate.toFixed(2)}</td>
+      <td>₱${e.sss.toFixed(2)}</td>
+      <td>${e.philhealthRate}%</td>
+      <td>₱${e.pagibig.toFixed(2)}</td>
+      <td class="actions">
+        <button class="btn-secondary" onclick="editEmployee('${id}')">✏️ Edit</button>
+        <button class="btn-danger" onclick="deleteEmployee('${id}')">🗑️</button>
+      </td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  list.innerHTML = html;
+}
+
+function exportEmployees() {
+  const empIds = Object.keys(employees);
+  if (empIds.length === 0) {
+    alert('No employees to export');
+    return;
+  }
+
+  // Create CSV content
+  const headers = ['Employee ID', 'Name', 'Daily Basic Pay', 'Hourly Rate', 'Allowance', 'SSS', 'PhilHealth Rate (%)', 'Pag-IBIG'];
+  let csv = headers.join(',') + '\n';
+  
+  for (const id of empIds) {
+    const e = employees[id];
+    const row = [
+      id,
+      `"${e.name}"`, // Quote name in case it has commas
+      e.basicPay,
+      e.hourlyRate,
+      e.allowance,
+      e.sss,
+      e.philhealthRate,
+      e.pagibig
+    ];
+    csv += row.join(',') + '\n';
+  }
+
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'employees_backup.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importEmployees(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const content = ev.target.result;
+      let imported = {};
+      
+      // Check if CSV or JSON
+      if (file.name.endsWith('.csv')) {
+        // Parse CSV
+        const lines = content.trim().split('\n');
+        if (lines.length < 2) {
+          alert('Invalid CSV file');
+          return;
+        }
+        
+        // Skip header line
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          
+          // Parse CSV line (handle quoted values)
+          const values = [];
+          let current = '';
+          let inQuotes = false;
+          
+          for (let j = 0; j < line.length; j++) {
+            const char = line[j];
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+              values.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          values.push(current.trim());
+          
+          if (values.length >= 8) {
+            const empId = values[0];
+            imported[empId] = {
+              name: values[1].replace(/^"|"$/g, ''), // Remove quotes
+              basicPay: parseFloat(values[2]) || 0,
+              hourlyRate: parseFloat(values[3]) || 0,
+              allowance: parseFloat(values[4]) || 0,
+              sss: parseFloat(values[5]) || 0,
+              philhealthRate: parseFloat(values[6]) || 5,
+              pagibig: parseFloat(values[7]) || 0
+            };
+          }
+        }
+      } else {
+        // Parse JSON
+        imported = JSON.parse(content);
+      }
+      
+      if (Object.keys(imported).length === 0) {
+        alert('No valid employee data found in file');
+        return;
+      }
+      
+      if (confirm(`Import ${Object.keys(imported).length} employees? This will merge with existing data.`)) {
+        employees = { ...employees, ...imported };
+        saveEmployees();
+        renderEmployeeList();
+        alert('Import successful!');
+      }
+    } catch (err) {
+      alert('Invalid file format: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function getEmployeeData(empId) {
+  return employees[empId] || null;
+}
+
+// Load employees on page load
+loadEmployees();
 
 // ─── File handling ────────────────────────────────────────────────────────────
 const uploadZone = document.getElementById('uploadZone');
@@ -740,6 +1307,11 @@ function renderMissingTable() {
 
 function renderPayslipPreview(empId) {
   const rows = buildAttendanceRows(empId);
+  const empData = getEmployeeData(empId);
+  
+  // Get pay period settings
+  const payPeriod = document.getElementById('payPeriod')?.value || '';
+  const payDate = document.getElementById('payDate')?.value || '';
   
   // Calculate totals from attendance data
   let totalHoursWorked = 0;
@@ -762,20 +1334,33 @@ function renderPayslipPreview(empId) {
     }
   }
   
-  const hourlyRate = 86.88;
-  const basicPay = totalHoursWorked * hourlyRate;
-  const weekendPremium = weekendHours * hourlyRate * 0.3;
-  const otRegularPay = otRegular * hourlyRate * 1.25;
-  const otWeekendPay = otWeekend * hourlyRate * 1.3;
-  const allowance = 0;
-  const grossPay = basicPay + weekendPremium + otRegularPay + otWeekendPay + allowance;
+  // Use enrolled data ONLY - no defaults
+  const empName = empData ? empData.name : '[Not Enrolled]';
+  const basicPayDaily = empData ? empData.basicPay : null;
+  const hourlyRate = empData ? empData.hourlyRate : null;
+  const allowance = empData ? empData.allowance : null;
+  const sss = empData ? empData.sss : null;
+  const pagibig = empData ? empData.pagibig : null;
   
-  const sss = 581.3;
-  const philhealth = basicPay * 0.025;
-  const pagibig = 100;
-  const totalDeductions = sss + philhealth + pagibig;
+  const basicPay = hourlyRate ? totalHoursWorked * hourlyRate : null;
+  const weekendPremium = hourlyRate ? weekendHours * hourlyRate * 0.3 : null;
+  const otRegularPay = hourlyRate ? otRegular * hourlyRate * 1.25 : null;
+  const otWeekendPay = hourlyRate ? otWeekend * hourlyRate * 1.3 : null;
+  const grossPay = (basicPay !== null && allowance !== null) ? basicPay + weekendPremium + otRegularPay + otWeekendPay + allowance : null;
   
-  const netPay = grossPay - totalDeductions;
+  // PhilHealth calculation: Monthly salary * rate / 2 (employee share)
+  let philhealth = null;
+  if (empData && basicPayDaily) {
+    const monthlySalary = basicPayDaily * 22;
+    philhealth = monthlySalary * (empData.philhealthRate / 100) / 2;
+    // Apply caps
+    philhealth = Math.max(250, Math.min(2500, philhealth));
+  }
+  
+  const totalDeductions = (sss !== null && philhealth !== null && pagibig !== null) ? sss + philhealth + pagibig : null;
+  const netPay = (grossPay !== null && totalDeductions !== null) ? grossPay - totalDeductions : null;
+  
+  const formatAmount = (val) => val !== null ? `₱${val.toFixed(2)}` : '—';
   
   return `
     <div style="padding: 30px; font-family: Arial, sans-serif;">
@@ -788,13 +1373,13 @@ function renderPayslipPreview(empId) {
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; font-size: 13px;">
         <div>
           <div style="margin-bottom: 8px;"><strong>Employee ID:</strong> ${empId}</div>
-          <div style="margin-bottom: 8px;"><strong>Name:</strong> <span style="color: #999;">[To be filled]</span></div>
-          <div style="margin-bottom: 8px;"><strong>Basic Pay (Daily):</strong> ₱695</div>
+          <div style="margin-bottom: 8px;"><strong>Name:</strong> <span style="color: ${empData ? '#1a2a28' : '#CC2229'};">${empName}</span></div>
+          <div style="margin-bottom: 8px;"><strong>Basic Pay (Daily):</strong> ${basicPayDaily !== null ? `₱${basicPayDaily.toFixed(2)}` : '—'}</div>
         </div>
         <div>
-          <div style="margin-bottom: 8px;"><strong>Pay Period:</strong> March 1-15, 2026</div>
-          <div style="margin-bottom: 8px;"><strong>Pay Date:</strong> March 20, 2026</div>
-          <div><strong>Hourly Rate:</strong> ₱86.88</div>
+          <div style="margin-bottom: 8px;"><strong>Pay Period:</strong> ${payPeriod || '—'}</div>
+          <div style="margin-bottom: 8px;"><strong>Pay Date:</strong> ${payDate || '—'}</div>
+          <div><strong>Hourly Rate:</strong> ${hourlyRate !== null ? `₱${hourlyRate.toFixed(2)}` : '—'}</div>
         </div>
       </div>
       
@@ -802,33 +1387,33 @@ function renderPayslipPreview(empId) {
         <div>
           <div style="background: #1A4FA0; color: white; padding: 8px; font-weight: bold; text-align: center; border-radius: 6px; margin-bottom: 10px;">EARNINGS</div>
           <table style="width: 100%; font-size: 12px;">
-            <tr><td style="padding: 6px 0;">Basic Pay</td><td style="text-align: right; font-weight: 600;">₱${basicPay.toFixed(2)}</td></tr>
-            <tr><td style="padding: 6px 0;">Weekend Premium</td><td style="text-align: right; font-weight: 600;">₱${weekendPremium.toFixed(2)}</td></tr>
-            <tr><td style="padding: 6px 0;">OT Pay (Regular)</td><td style="text-align: right; font-weight: 600;">₱${otRegularPay.toFixed(2)}</td></tr>
-            <tr><td style="padding: 6px 0;">OT Pay (Weekend)</td><td style="text-align: right; font-weight: 600;">₱${otWeekendPay.toFixed(2)}</td></tr>
-            <tr><td style="padding: 6px 0;">Allowance</td><td style="text-align: right; font-weight: 600;">₱${allowance.toFixed(2)}</td></tr>
-            <tr style="border-top: 2px solid #04AB92;"><td style="padding: 10px 0; font-weight: bold; color: #04AB92;">GROSS PAY</td><td style="text-align: right; font-weight: bold; color: #04AB92; font-size: 14px;">₱${grossPay.toFixed(2)}</td></tr>
+            <tr><td style="padding: 6px 0;">Basic Pay</td><td style="text-align: right; font-weight: 600;">${formatAmount(basicPay)}</td></tr>
+            <tr><td style="padding: 6px 0;">Weekend Premium</td><td style="text-align: right; font-weight: 600;">${formatAmount(weekendPremium)}</td></tr>
+            <tr><td style="padding: 6px 0;">OT Pay (Regular)</td><td style="text-align: right; font-weight: 600;">${formatAmount(otRegularPay)}</td></tr>
+            <tr><td style="padding: 6px 0;">OT Pay (Weekend)</td><td style="text-align: right; font-weight: 600;">${formatAmount(otWeekendPay)}</td></tr>
+            <tr><td style="padding: 6px 0;">Allowance</td><td style="text-align: right; font-weight: 600;">${formatAmount(allowance)}</td></tr>
+            <tr style="border-top: 2px solid #04AB92;"><td style="padding: 10px 0; font-weight: bold; color: #04AB92;">GROSS PAY</td><td style="text-align: right; font-weight: bold; color: #04AB92; font-size: 14px;">${formatAmount(grossPay)}</td></tr>
           </table>
         </div>
         
         <div>
           <div style="background: #1A4FA0; color: white; padding: 8px; font-weight: bold; text-align: center; border-radius: 6px; margin-bottom: 10px;">DEDUCTIONS</div>
           <table style="width: 100%; font-size: 12px;">
-            <tr><td style="padding: 6px 0;">SSS</td><td style="text-align: right; font-weight: 600;">₱${sss.toFixed(2)}</td></tr>
-            <tr><td style="padding: 6px 0;">PhilHealth</td><td style="text-align: right; font-weight: 600;">₱${philhealth.toFixed(2)}</td></tr>
-            <tr><td style="padding: 6px 0;">Pag-IBIG</td><td style="text-align: right; font-weight: 600;">₱${pagibig.toFixed(2)}</td></tr>
-            <tr style="border-top: 2px solid #CC2229;"><td style="padding: 10px 0; font-weight: bold;">TOTAL DEDUCTIONS</td><td style="text-align: right; font-weight: bold; font-size: 14px;">₱${totalDeductions.toFixed(2)}</td></tr>
+            <tr><td style="padding: 6px 0;">SSS</td><td style="text-align: right; font-weight: 600;">${formatAmount(sss)}</td></tr>
+            <tr><td style="padding: 6px 0;">PhilHealth</td><td style="text-align: right; font-weight: 600;">${formatAmount(philhealth)}</td></tr>
+            <tr><td style="padding: 6px 0;">Pag-IBIG</td><td style="text-align: right; font-weight: 600;">${formatAmount(pagibig)}</td></tr>
+            <tr style="border-top: 2px solid #CC2229;"><td style="padding: 10px 0; font-weight: bold;">TOTAL DEDUCTIONS</td><td style="text-align: right; font-weight: bold; font-size: 14px;">${formatAmount(totalDeductions)}</td></tr>
           </table>
         </div>
       </div>
       
       <div style="background: linear-gradient(135deg, #04AB92, #1A4FA0); color: white; padding: 20px; text-align: center; border-radius: 10px; margin-top: 30px;">
         <div style="font-size: 14px; margin-bottom: 5px;">NET PAY</div>
-        <div style="font-size: 28px; font-weight: bold;">₱${netPay.toFixed(2)}</div>
+        <div style="font-size: 28px; font-weight: bold;">${formatAmount(netPay)}</div>
       </div>
       
-      <div style="margin-top: 40px; font-size: 11px; color: #999; text-align: center;">
-        <p>Note: Values shown are calculated from attendance data. Edit rates in Excel for final payslip.</p>
+      <div style="margin-top: 40px; font-size: 11px; color: ${empData ? '#999' : '#CC2229'}; text-align: center;">
+        <p>${empData ? 'Values calculated from enrolled employee data and attendance.' : '⚠️ Employee not enrolled. Please enroll employee to calculate payslip.'}</p>
       </div>
     </div>
   `;
@@ -841,8 +1426,11 @@ function roundHalf(hrs) {
 }
 
 function buildAttendanceRows(empId) {
+  const payPeriod = document.getElementById('payPeriod')?.value || '';
+  const datesToUse = payPeriod ? filterDatesByPeriod(allDates, payPeriod) : allDates;
+  
   const rows = [];
-  for (const date of allDates) {
+  for (const date of datesToUse) {
     const d = new Date(date);
     const dayName = DAYS[d.getDay()];
     const rec = parsedData[empId]?.[date];
@@ -880,6 +1468,22 @@ function buildAttendanceRows(empId) {
 
 // ─── Excel Generation ─────────────────────────────────────────────────────────
 function generateExcel() {
+  // Validate pay period is filled
+  const payPeriod = document.getElementById('payPeriod')?.value.trim();
+  const payDate = document.getElementById('payDate')?.value.trim();
+  
+  if (!payPeriod) {
+    alert('Please enter Pay Period before generating Excel file.');
+    document.getElementById('payPeriod').focus();
+    return;
+  }
+  
+  if (!payDate) {
+    alert('Please enter Pay Date before generating Excel file.');
+    document.getElementById('payDate').focus();
+    return;
+  }
+  
   const progressWrap = document.getElementById('progressWrap');
   const progressBar = document.getElementById('progressBar');
   const progressLabel = document.getElementById('progressLabel');
@@ -1200,6 +1804,18 @@ function generateExcel() {
     done++;
 
     // PAYSLIP SHEET
+    const empData = getEmployeeData(empId);
+    const empName = empData ? empData.name : '';
+    const basicPayDaily = empData ? empData.basicPay : 695;
+    const hourlyRate = empData ? empData.hourlyRate : 86.88;
+    const allowance = empData ? empData.allowance : 0;
+    const sss = empData ? empData.sss : 581.3;
+    const pagibig = empData ? empData.pagibig : 100;
+    const philhealthRate = empData ? empData.philhealthRate : 5;
+    
+    // Get pay period settings
+    const payPeriod = document.getElementById('payPeriod')?.value || '';
+    const payDate = document.getElementById('payDate')?.value || '';
 
     const payslipData = [
       [],
@@ -1207,16 +1823,16 @@ function generateExcel() {
       ['', '6th Floor, Unit 604, Sky Tower 1, 68 Dasmariñas Street, Binondo, Manila, Philippines'],
       ['', 'PAYSLIP'],
       [],
-      ['', 'Employee ID:', empId, '', 'Pay Period:', 'March 1-15, 2026'],
-      ['', 'Name:', '', '', 'Pay Date:', 'March 20, 2026'],
-      ['', 'Basic Pay (Daily):', '₱695', '', 'Hourly Rate:', '₱86.88'],
+      ['', 'Employee ID:', empId, '', 'Pay Period:', payPeriod],
+      ['', 'Name:', empName, '', 'Pay Date:', payDate],
+      ['', 'Basic Pay (Daily):', empData ? `₱${basicPayDaily.toFixed(2)}` : '', '', 'Hourly Rate:', empData ? `₱${hourlyRate.toFixed(2)}` : ''],
       [],
       ['', 'EARNINGS', '', '', 'DEDUCTIONS'],
-      ['', 'Basic Pay', '', '', 'SSS', '₱581.30'],
+      ['', 'Basic Pay', '', '', 'SSS', empData ? `₱${sss.toFixed(2)}` : ''],
       ['', 'Weekend Premium', '', '', 'PhilHealth'],
-      ['', 'OT Pay (Regular)', '', '', 'Pag-IBIG', '₱100.00'],
+      ['', 'OT Pay (Regular)', '', '', 'Pag-IBIG', empData ? `₱${pagibig.toFixed(2)}` : ''],
       ['', 'OT Pay (Weekend)'],
-      ['', 'Allowance', '₱0.00'],
+      ['', 'Allowance', empData ? `₱${allowance.toFixed(2)}` : ''],
       ['', 'GROSS PAY', '', '', 'TOTAL DEDUCTIONS'],
       [],
       ['', 'NET PAY'],
@@ -1225,7 +1841,7 @@ function generateExcel() {
       ['', 'Prepared by:', '', '', 'Received by:'],
       [],
       ['', '_______________________', '', '', '_______________________'],
-      ['', 'HR / Payroll Officer', '', '', '']
+      ['', 'HR / Payroll Officer', '', '', empName || `Employee ${empId}`]
     ];
 
     const wsp = XLSX.utils.aoa_to_sheet(payslipData);
@@ -1247,8 +1863,14 @@ function generateExcel() {
     // C16: Gross Pay = SUM(C11:C15)
     wsp['C16'] = { t: 'n', f: 'SUM(C11:C15)', z: '₱#,##0.00' };
     
-    // F12: PhilHealth = Basic Pay * 0.025
-    wsp['F12'] = { t: 'n', f: 'C11*0.025', z: '₱#,##0.00' };
+    // F12: PhilHealth calculation only if employee data exists
+    if (empData) {
+      const monthlyFormula = `C8*22`; // Daily pay * 22 days
+      const philhealthFormula = `MIN(2500,MAX(250,(${monthlyFormula})*(${philhealthRate}/100)/2))`;
+      wsp['F12'] = { t: 'n', f: philhealthFormula, z: '₱#,##0.00' };
+    } else {
+      wsp['F12'] = { v: '', t: 's' };
+    }
     
     // F16: Total Deductions = SUM(F11:F13)
     wsp['F16'] = { t: 'n', f: 'SUM(F11:F13)', z: '₱#,##0.00' };
@@ -1257,7 +1879,7 @@ function generateExcel() {
     wsp['B19'] = { t: 'n', f: 'C16-F16', z: '₱#,##0.00' };
 
     // Employee name placeholder in signature
-    wsp['E24'] = { v: `Employee ${empId}`, t: 's' };
+    wsp['E24'] = { v: empName || `Employee ${empId}`, t: 's' };
 
     wsp['!ref'] = 'A1:G24';
     wsp['!cols'] = [{ wch: 3 }, { wch: 20 }, { wch: 15 }, { wch: 3 }, { wch: 18 }, { wch: 15 }, { wch: 3 }];

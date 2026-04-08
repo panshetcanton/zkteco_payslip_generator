@@ -1164,8 +1164,8 @@ function importEmployees(e) {
       
       let imported = {};
       
-      // Skip header row (index 0)
-      for (let i = 1; i < jsonData.length; i++) {
+      // Skip title (row 0), blank (row 1), and header (row 2) - start from row 3
+      for (let i = 3; i < jsonData.length; i++) {
         const row = jsonData[i];
         if (!row || row.length < 8) {
           console.log(`Skipping row ${i} - insufficient columns`);

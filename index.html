@@ -1281,13 +1281,20 @@ function processDAT(text) {
     if (spaceIdx === -1) continue;
     const date = datetime.substring(0, spaceIdx);
     const time = datetime.substring(spaceIdx + 1, spaceIdx + 6); // HH:MM
+    
+    // Parse hour to determine if time should be treated as time-out
+    const [hour] = time.split(':').map(Number);
+    const isAfternoon = hour >= 13; // Times >= 13:00 (1:00 PM) are likely time-out
+    
     if (!raw[empId]) raw[empId] = {};
     if (!raw[empId][date]) raw[empId][date] = { in: null, out: null };
-    if (punchType === 0) {
+    
+    // If punchType is 0 (time-in) but time is after 1 PM, treat as time-out
+    if (punchType === 0 && !isAfternoon) {
       // Keep earliest time-in
       if (!raw[empId][date].in || time < raw[empId][date].in) raw[empId][date].in = time;
     } else {
-      // Keep latest time-out
+      // Keep latest time-out (includes punchType 1 and afternoon times)
       if (!raw[empId][date].out || time > raw[empId][date].out) raw[empId][date].out = time;
     }
   }

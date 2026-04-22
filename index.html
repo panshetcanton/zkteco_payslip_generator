@@ -709,21 +709,35 @@
   <!-- Pay Period Settings -->
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 24px;">
     <div style="font-size: 14px; font-weight: 700; color: var(--accent3); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-      📅 Pay Period Settings (Optional)
+      📅 Pay Period Settings
     </div>
     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
       <div>
-        <label style="font-size: 12px; font-weight: 600; color: var(--muted); font-family: 'DM Mono', monospace; display: block; margin-bottom: 6px;">Pay Period Start</label>
-        <input type="date" id="payPeriodStart" value="" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 14px;">
+        <label style="font-size: 12px; font-weight: 600; color: var(--muted); font-family: 'DM Mono', monospace; display: block; margin-bottom: 6px;">Pay Period Start *</label>
+        <input type="date" id="payPeriodStart" value="" required style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 14px;">
       </div>
       <div>
-        <label style="font-size: 12px; font-weight: 600; color: var(--muted); font-family: 'DM Mono', monospace; display: block; margin-bottom: 6px;">Pay Period End</label>
-        <input type="date" id="payPeriodEnd" value="" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 14px;">
+        <label style="font-size: 12px; font-weight: 600; color: var(--muted); font-family: 'DM Mono', monospace; display: block; margin-bottom: 6px;">Pay Period End *</label>
+        <input type="date" id="payPeriodEnd" value="" required style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 14px;">
       </div>
       <div>
         <label style="font-size: 12px; font-weight: 600; color: var(--muted); font-family: 'DM Mono', monospace; display: block; margin-bottom: 6px;">Pay Date</label>
         <input type="date" id="payDate" value="" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 14px;">
       </div>
+    </div>
+  </div>
+
+  <!-- Holiday Settings -->
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 24px;">
+    <div style="font-size: 14px; font-weight: 700; color: var(--accent3); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; justify-content: space-between;">
+      <span>🎉 Holiday Settings (Optional)</span>
+      <button class="btn-secondary" onclick="addHolidayDate()" style="padding: 6px 12px; font-size: 11px;">+ Add Holiday</button>
+    </div>
+    <div id="holidayList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 12px;">
+      <!-- Holiday dates will be added here -->
+    </div>
+    <div style="font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace;">
+      💡 Holidays will be paid at 2x the hourly rate (double pay)
     </div>
   </div>
 
@@ -887,6 +901,44 @@ let activeEmp = null;
 let employees = {}; // empId -> {name, basicPay, hourlyRate, allowance, sss, philhealthRate, pagibig}
 let editingEmpId = null;
 let selectedEmployees = {}; // empId -> true/false for Excel generation
+let holidays = []; // Array of holiday dates in YYYY-MM-DD format
+let holidayCounter = 0; // Counter for unique holiday IDs
+
+// ─── Holiday Management ──────────────────────────────────────────────────────
+function addHolidayDate() {
+  const id = `holiday_${holidayCounter++}`;
+  const container = document.getElementById('holidayList');
+  
+  const holidayItem = document.createElement('div');
+  holidayItem.id = id;
+  holidayItem.style.cssText = 'display: flex; align-items: center; gap: 8px; background: var(--surface2); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);';
+  
+  holidayItem.innerHTML = `
+    <input type="date" id="${id}_date" style="flex: 1; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 12px;">
+    <button onclick="removeHolidayDate('${id}')" style="background: var(--accent2); color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;">✕</button>
+  `;
+  
+  container.appendChild(holidayItem);
+}
+
+function removeHolidayDate(id) {
+  const element = document.getElementById(id);
+  if (element) element.remove();
+}
+
+function getHolidayDates() {
+  const container = document.getElementById('holidayList');
+  const dateInputs = container.querySelectorAll('input[type="date"]');
+  const dates = [];
+  
+  dateInputs.forEach(input => {
+    if (input.value) {
+      dates.push(input.value);
+    }
+  });
+  
+  return dates;
+}
 
 // ─── Employee Management ──────────────────────────────────────────────────────
 function parseDateRange(payPeriod) {
@@ -1298,6 +1350,19 @@ fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.
 function handleFile(file) {
   const reader = new FileReader();
   reader.onload = e => {
+    // Validate pay period is set
+    const payPeriodStart = document.getElementById('payPeriodStart')?.value || '';
+    const payPeriodEnd = document.getElementById('payPeriodEnd')?.value || '';
+    
+    if (!payPeriodStart || !payPeriodEnd) {
+      alert('Please set Pay Period Start and End dates before uploading the file.');
+      fileInput.value = ''; // Clear the file input
+      return;
+    }
+    
+    // Parse holidays from date inputs
+    holidays = getHolidayDates();
+    
     processDAT(e.target.result);
     document.getElementById('fileName').textContent = file.name;
     document.getElementById('fileBadge').style.display = 'inline-flex';
@@ -1578,17 +1643,59 @@ function renderPayslipPreview(empId) {
   // Calculate totals from attendance data
   let totalHoursWorked = 0;
   let weekendHours = 0;
+  let holidayHours = 0;
   let otRegular = 0;
   let otWeekend = 0;
+  let otHolidayWeekday = 0;  // Holiday OT on weekdays
+  let otHolidayWeekend = 0;  // Holiday OT on weekends
+  let holidayDaysNotWorked = 0; // Count of holidays where employee didn't work
+  
+  // Check ALL holidays (not just those in attendance data)
+  for (const holidayDate of holidays) {
+    const d = new Date(holidayDate);
+    const dayOfWeek = d.getDay();
+    // Only count weekday holidays (Monday-Friday = 1-5)
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+      // Check if this holiday date is within the pay period
+      if (allDates.includes(holidayDate)) {
+        // Check if employee has time-in record for this holiday
+        const worked = rows.some(row => row[0] === holidayDate && row[2] && row[2] !== '—');
+        if (!worked) {
+          holidayDaysNotWorked++;
+        }
+      } else {
+        // Holiday is not in pay period attendance, but still count it if it's in the date range
+        const payPeriodStart = document.getElementById('payPeriodStart')?.value || '';
+        const payPeriodEnd = document.getElementById('payPeriodEnd')?.value || '';
+        if (payPeriodStart && payPeriodEnd) {
+          if (holidayDate >= payPeriodStart && holidayDate <= payPeriodEnd) {
+            holidayDaysNotWorked++;
+          }
+        }
+      }
+    }
+  }
   
   for (const row of rows) {
+    const date = row[0];
     const day = row[1];
     const hoursWorked = typeof row[5] === 'number' ? row[5] : 0;
     const ot = typeof row[6] === 'number' ? row[6] : 0;
     
     totalHoursWorked += hoursWorked;
     
-    if (day === 'Saturday' || day === 'Sunday') {
+    const isHoliday = holidays.includes(date);
+    const isWeekend = day === 'Saturday' || day === 'Sunday';
+    
+    if (isHoliday) {
+      holidayHours += hoursWorked; // Just the hours worked, no doubling
+      // Separate holiday OT by weekday vs weekend
+      if (isWeekend) {
+        otHolidayWeekend += ot;
+      } else {
+        otHolidayWeekday += ot;
+      }
+    } else if (isWeekend) {
       weekendHours += hoursWorked;
       otWeekend += ot;
     } else {
@@ -1604,11 +1711,13 @@ function renderPayslipPreview(empId) {
   const sss = empData ? empData.sss : null;
   const pagibig = empData ? empData.pagibig : null;
   
-  const basicPay = hourlyRate ? totalHoursWorked * hourlyRate : null;
+  const basicPay = hourlyRate ? (totalHoursWorked * hourlyRate + holidayDaysNotWorked * basicPayDaily) : null;
   const weekendPremium = hourlyRate ? weekendHours * hourlyRate * 0.3 : null;
+  const holidayPay = hourlyRate ? holidayHours * hourlyRate : null;
   const otRegularPay = hourlyRate ? otRegular * hourlyRate * 1.25 : null;
   const otWeekendPay = hourlyRate ? otWeekend * hourlyRate * 1.3 : null;
-  const grossPay = (basicPay !== null && allowance !== null) ? basicPay + weekendPremium + otRegularPay + otWeekendPay + allowance : null;
+  const otHolidayPay = hourlyRate ? (otHolidayWeekday * hourlyRate * 1.25 + otHolidayWeekend * hourlyRate * 1.3) : null; // Weekday: 1.25, Weekend: 1.3
+  const grossPay = (basicPay !== null && allowance !== null) ? basicPay + weekendPremium + holidayPay + otRegularPay + otWeekendPay + otHolidayPay + allowance : null;
   
   // PhilHealth calculation: Monthly salary * rate / 2 (employee share)
   let philhealth = null;
@@ -1651,8 +1760,10 @@ function renderPayslipPreview(empId) {
           <table style="width: 100%; font-size: 12px;">
             <tr><td style="padding: 6px 0;">Basic Pay</td><td style="text-align: right; font-weight: 600;">${formatAmount(basicPay)}</td></tr>
             <tr><td style="padding: 6px 0;">Weekend Premium</td><td style="text-align: right; font-weight: 600;">${formatAmount(weekendPremium)}</td></tr>
+            <tr><td style="padding: 6px 0;">Holiday Pay</td><td style="text-align: right; font-weight: 600;">${formatAmount(holidayPay)}</td></tr>
             <tr><td style="padding: 6px 0;">OT Pay (Regular)</td><td style="text-align: right; font-weight: 600;">${formatAmount(otRegularPay)}</td></tr>
             <tr><td style="padding: 6px 0;">OT Pay (Weekend)</td><td style="text-align: right; font-weight: 600;">${formatAmount(otWeekendPay)}</td></tr>
+            <tr><td style="padding: 6px 0;">OT Pay (Holiday)</td><td style="text-align: right; font-weight: 600;">${formatAmount(otHolidayPay)}</td></tr>
             <tr><td style="padding: 6px 0;">Allowance</td><td style="text-align: right; font-weight: 600;">${formatAmount(allowance)}</td></tr>
             <tr style="border-top: 2px solid #04AB92;"><td style="padding: 10px 0; font-weight: bold; color: #04AB92;">GROSS PAY</td><td style="text-align: right; font-weight: bold; color: #04AB92; font-size: 14px;">${formatAmount(grossPay)}</td></tr>
           </table>
@@ -1889,6 +2000,55 @@ function generateExcel() {
     const pagibig = empData ? empData.pagibig : 100;
     const philhealthRate = empData ? empData.philhealthRate : 5;
     
+    // Calculate holiday hours and OT from attendance data
+    let holidayHours = 0;
+    let holidayOTWeekday = 0;
+    let holidayOTWeekend = 0;
+    let holidayDaysNotWorked = 0;
+    
+    // Check ALL holidays (not just those in attendance data)
+    for (const holidayDate of holidays) {
+      const d = new Date(holidayDate);
+      const dayOfWeek = d.getDay();
+      // Only count weekday holidays (Monday-Friday = 1-5)
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        // Check if this holiday date is within the pay period
+        if (allDates.includes(holidayDate)) {
+          // Check if employee has time-in record for this holiday
+          const worked = rows.some(row => row[0] === holidayDate && row[2] && row[2] !== '—');
+          if (!worked) {
+            holidayDaysNotWorked++;
+          }
+        } else {
+          // Holiday is not in attendance data, check if it's in the pay period range
+          if (payPeriodStart && payPeriodEnd) {
+            if (holidayDate >= payPeriodStart && holidayDate <= payPeriodEnd) {
+              holidayDaysNotWorked++;
+            }
+          }
+        }
+      }
+    }
+    
+    // Then, add actual hours worked on holidays
+    for (let i = 0; i < rows.length; i++) {
+      const date = rows[i][0];
+      const day = rows[i][1];
+      if (holidays.includes(date)) {
+        const hoursWorked = typeof rows[i][5] === 'number' ? rows[i][5] : 0;
+        const ot = typeof rows[i][6] === 'number' ? rows[i][6] : 0;
+        holidayHours += hoursWorked; // Just the hours worked, no doubling
+        
+        // Separate holiday OT by weekday vs weekend
+        const isWeekend = day === 'Saturday' || day === 'Sunday';
+        if (isWeekend) {
+          holidayOTWeekend += ot;
+        } else {
+          holidayOTWeekday += ot;
+        }
+      }
+    }
+    
     // Get pay period settings
     const payPeriodStart = document.getElementById('payPeriodStart')?.value || '';
     const payPeriodEnd = document.getElementById('payPeriodEnd')?.value || '';
@@ -1931,8 +2091,10 @@ function generateExcel() {
       ['', 'EARNINGS', '', '', 'DEDUCTIONS'],
       ['', 'Basic Pay', '', '', 'SSS', empData ? `₱${sss.toFixed(2)}` : ''],
       ['', 'Weekend Premium', '', '', 'PhilHealth'],
-      ['', 'OT Pay (Regular)', '', '', 'Pag-IBIG', empData ? `₱${pagibig.toFixed(2)}` : ''],
+      ['', 'Holiday Pay', '', '', 'Pag-IBIG', empData ? `₱${pagibig.toFixed(2)}` : ''],
+      ['', 'OT Pay (Regular)'],
       ['', 'OT Pay (Weekend)'],
+      ['', 'OT Pay (Holiday)'],
       ['', 'Allowance', empData ? `₱${allowance.toFixed(2)}` : ''],
       ['', 'GROSS PAY', '', '', 'TOTAL DEDUCTIONS'],
       [],
@@ -1942,7 +2104,10 @@ function generateExcel() {
       ['', 'Prepared by:', '', '', 'Received by:'],
       [],
       ['', '_______________________', '', '', '_______________________'],
-      ['', 'HR / Payroll Officer', '', '', empName || `Employee ${empId}`]
+      ['', 'HR / Payroll Officer', '', '', empName || `Employee ${empId}`],
+      [],
+      ['', '--- Holiday Dates ---'],
+      ...holidays.map(h => ['', h])
     ];
 
     const wsp = XLSX.utils.aoa_to_sheet(payslipData);
@@ -1950,19 +2115,62 @@ function generateExcel() {
     // Reference to attendance sheet for calculations
     const attSheetName = `EMP_${empId}_Attendance`;
     const attLastRow = rows.length + 3;
+    const holidayListStart = 28;
 
-    // Calculate formulas referencing attendance data
-    // C11: Basic Pay = SUM of Hours Worked (F column) * Hourly Rate (F8)
-    wsp['C11'] = { t: 'n', f: `SUM('${attSheetName}'!F4:F${attLastRow})*F8`, z: '₱#,##0.00' };
+    // C11: Basic Pay = SUM of Hours Worked (F column) * Hourly Rate (F8) + (not_worked_holidays * daily_basic_pay)
+    // Count weekday holidays where employee didn't work
+    let weekdayHolidaysNotWorked = 0;
+    for (const holidayDate of holidays) {
+      const d = new Date(holidayDate);
+      const dayOfWeek = d.getDay();
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        // Check if this holiday is in the pay period
+        if (payPeriodStart && payPeriodEnd) {
+          if (holidayDate >= payPeriodStart && holidayDate <= payPeriodEnd) {
+            // Check if employee worked on this holiday
+            const worked = rows.some(row => row[0] === holidayDate && row[2] && row[2] !== '—');
+            if (!worked) weekdayHolidaysNotWorked++;
+          }
+        }
+      }
+    }
+    
+    wsp['C11'] = { t: 'n', f: `(SUM('${attSheetName}'!F4:F${attLastRow})*F8)+(${weekdayHolidaysNotWorked}*C8)`, z: '₱#,##0.00' };
     
     wsp['C12'] = { t: 'n', f: `(SUMIF('${attSheetName}'!B:B,"Saturday",'${attSheetName}'!F:F)+SUMIF('${attSheetName}'!B:B,"Sunday",'${attSheetName}'!F:F))*F8*0.3`, z: '₱#,##0.00' };
     
-    wsp['C13'] = { t: 'n', f: `SUMIFS('${attSheetName}'!G:G,'${attSheetName}'!B:B,"<>Saturday",'${attSheetName}'!B:B,"<>Sunday")*F8*1.25`, z: '₱#,##0.00' };
+    // C13: Holiday Pay with formula - only for hours worked on holidays
+    if (holidays.length > 0) {
+      const holidayWorkedFormula = holidays.map((h, idx) => 
+        `SUMIF('${attSheetName}'!A:A,B${holidayListStart + idx + 1},'${attSheetName}'!F:F)`
+      ).join('+');
+      
+      wsp['C13'] = { t: 'n', f: `(${holidayWorkedFormula})*F8`, z: '₱#,##0.00' };
+    } else {
+      wsp['C13'] = { t: 'n', v: 0, z: '₱#,##0.00' };
+    }
     
-    wsp['C14'] = { t: 'n', f: `(SUMIF('${attSheetName}'!B:B,"Saturday",'${attSheetName}'!G:G)+SUMIF('${attSheetName}'!B:B,"Sunday",'${attSheetName}'!G:G))*F8*1.3`, z: '₱#,##0.00' };
+    wsp['C14'] = { t: 'n', f: `SUMIFS('${attSheetName}'!G:G,'${attSheetName}'!B:B,"<>Saturday",'${attSheetName}'!B:B,"<>Sunday")*F8*1.25`, z: '₱#,##0.00' };
     
-    // C16: Gross Pay = SUM(C11:C15)
-    wsp['C16'] = { t: 'n', f: 'SUM(C11:C15)', z: '₱#,##0.00' };
+    wsp['C15'] = { t: 'n', f: `(SUMIF('${attSheetName}'!B:B,"Saturday",'${attSheetName}'!G:G)+SUMIF('${attSheetName}'!B:B,"Sunday",'${attSheetName}'!G:G))*F8*1.3`, z: '₱#,##0.00' };
+    
+    // C16: OT Pay (Holiday) with formula - Weekday: 1.25x, Weekend: 1.3x
+    if (holidays.length > 0) {
+      const holidayOTFormulaParts = holidays.map((h, idx) => {
+        const d = new Date(h);
+        const dayOfWeek = d.getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        const rate = isWeekend ? 1.3 : 1.25;
+        return `(SUMIF('${attSheetName}'!A:A,B${holidayListStart + idx + 1},'${attSheetName}'!G:G)*${rate})`;
+      });
+      
+      wsp['C16'] = { t: 'n', f: `(${holidayOTFormulaParts.join('+')})${holidayOTFormulaParts.length > 0 ? '*F8' : ''}`, z: '₱#,##0.00' };
+    } else {
+      wsp['C16'] = { t: 'n', v: 0, z: '₱#,##0.00' };
+    }
+    
+    // C18: Gross Pay = SUM(C11:C17)
+    wsp['C18'] = { t: 'n', f: 'SUM(C11:C17)', z: '₱#,##0.00' };
     
     // F12: PhilHealth calculation only if employee data exists
     if (empData) {
@@ -1973,29 +2181,29 @@ function generateExcel() {
       wsp['F12'] = { v: '', t: 's' };
     }
     
-    // F16: Total Deductions = SUM(F11:F13)
-    wsp['F16'] = { t: 'n', f: 'SUM(F11:F13)', z: '₱#,##0.00' };
+    // F18: Total Deductions = SUM(F11:F13)
+    wsp['F18'] = { t: 'n', f: 'SUM(F11:F13)', z: '₱#,##0.00' };
     
-    // B19: Net Pay = Gross Pay - Total Deductions
-    wsp['B19'] = { t: 'n', f: 'C16-F16', z: '₱#,##0.00' };
+    // B21: Net Pay = Gross Pay - Total Deductions
+    wsp['B21'] = { t: 'n', f: 'C18-F18', z: '₱#,##0.00' };
 
     // Employee name placeholder in signature
-    wsp['E24'] = { v: empName || `Employee ${empId}`, t: 's' };
+    wsp['E26'] = { v: empName || `Employee ${empId}`, t: 's' };
 
-    wsp['!ref'] = 'A1:G24';
+    wsp['!ref'] = `A1:G${26 + holidays.length + 2}`;
     wsp['!cols'] = [{ wch: 3 }, { wch: 20 }, { wch: 15 }, { wch: 3 }, { wch: 18 }, { wch: 15 }, { wch: 3 }];
     wsp['!merges'] = [
       { s: { r: 1, c: 1 }, e: { r: 1, c: 5 } },
       { s: { r: 2, c: 1 }, e: { r: 2, c: 5 } },
       { s: { r: 3, c: 1 }, e: { r: 3, c: 5 } },
-      { s: { r: 17, c: 1 }, e: { r: 17, c: 5 } },
-      { s: { r: 18, c: 1 }, e: { r: 18, c: 5 } },
-      { s: { r: 20, c: 1 }, e: { r: 20, c: 2 } },
-      { s: { r: 20, c: 4 }, e: { r: 20, c: 5 } },
-      { s: { r: 21, c: 1 }, e: { r: 22, c: 2 } },
-      { s: { r: 21, c: 4 }, e: { r: 22, c: 5 } },
-      { s: { r: 23, c: 1 }, e: { r: 23, c: 2 } },
-      { s: { r: 23, c: 4 }, e: { r: 23, c: 5 } }
+      { s: { r: 19, c: 1 }, e: { r: 19, c: 5 } },
+      { s: { r: 20, c: 1 }, e: { r: 20, c: 5 } },
+      { s: { r: 22, c: 1 }, e: { r: 22, c: 2 } },
+      { s: { r: 22, c: 4 }, e: { r: 22, c: 5 } },
+      { s: { r: 23, c: 1 }, e: { r: 24, c: 2 } },
+      { s: { r: 23, c: 4 }, e: { r: 24, c: 5 } },
+      { s: { r: 25, c: 1 }, e: { r: 25, c: 2 } },
+      { s: { r: 25, c: 4 }, e: { r: 25, c: 5 } }
     ];
 
     const payBorder = {
@@ -2064,7 +2272,7 @@ function generateExcel() {
     });
 
     // GROSS PAY and TOTAL DEDUCTIONS
-    ['B16', 'E16'].forEach(addr => {
+    ['B18', 'E18'].forEach(addr => {
       if (!wsp[addr]) wsp[addr] = { v: '', t: 's' };
       wsp[addr].s = {
         font: { bold: true, sz: 10, name: 'Arial' },
@@ -2073,40 +2281,40 @@ function generateExcel() {
       };
     });
 
-    // NET PAY (B18) - with outer border
-    wsp['B18'].s = {
+    // NET PAY (B20) - with outer border
+    wsp['B20'].s = {
       font: { bold: true, sz: 12, name: 'Arial', color: { rgb: 'FFFFFF' } },
       fill: { fgColor: { rgb: '04AB92' } },
       alignment: { horizontal: 'center', vertical: 'center' },
       border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, left: { style: 'thin', color: { rgb: '000000' } } }
     };
 
-    ['C18', 'D18', 'E18'].forEach(addr => {
+    ['C20', 'D20', 'E20'].forEach(addr => {
       wsp[addr] = { v: '', t: 's', s: { fill: { fgColor: { rgb: '04AB92' } }, border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } } } };
     });
-    wsp['F18'] = { v: '', t: 's', s: { fill: { fgColor: { rgb: '04AB92' } }, border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, right: { style: 'thin', color: { rgb: '000000' } } } } };
+    wsp['F20'] = { v: '', t: 's', s: { fill: { fgColor: { rgb: '04AB92' } }, border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, right: { style: 'thin', color: { rgb: '000000' } } } } };
 
-    // NET PAY value (B19) - with outer border
-    wsp['B19'].s = {
+    // NET PAY value (B21) - with outer border
+    wsp['B21'].s = {
       font: { bold: true, sz: 18, name: 'Arial', color: { rgb: '04AB92' } },
       alignment: { horizontal: 'center', vertical: 'center' },
       border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, left: { style: 'thin', color: { rgb: '000000' } } },
       numFmt: '₱#,##0.00'
     };
 
-    ['C19', 'D19', 'E19'].forEach(addr => {
+    ['C21', 'D21', 'E21'].forEach(addr => {
       wsp[addr] = { v: '', t: 's', s: { border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } } } };
     });
-    wsp['F19'] = { v: '', t: 's', s: { border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, right: { style: 'thin', color: { rgb: '000000' } } } } };
+    wsp['F21'] = { v: '', t: 's', s: { border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, right: { style: 'thin', color: { rgb: '000000' } } } } };
 
     // Apply borders and styling to all data cells
-    for (let r = 5; r <= 15; r++) {
+    for (let r = 5; r <= 17; r++) {
       for (let c = 1; c <= 5; c++) {
         const addr = XLSX.utils.encode_cell({ r, c });
         if (!wsp[addr]) wsp[addr] = { v: '', t: 's' };
         if (!wsp[addr].s) wsp[addr].s = {};
         
-        if (r === 4 || r === 8 || r === 16) {
+        if (r === 4 || r === 8 || r === 18) {
           wsp[addr].s.border = noBorder;
           if (c === 1) wsp[addr].s.border = { left: { style: 'thin', color: { rgb: '000000' } } };
           if (c === 5) wsp[addr].s.border = { right: { style: 'thin', color: { rgb: '000000' } } };
@@ -2119,14 +2327,14 @@ function generateExcel() {
         wsp[addr].s.font = { name: 'Arial', sz: 10 };
         wsp[addr].s.alignment = { vertical: 'center', horizontal: (c === 2 || c === 5) ? 'right' : 'left' };
         
-        if ((c === 2 && r >= 11 && r <= 15) || (c === 5 && r >= 11 && r <= 13)) {
+        if ((c === 2 && r >= 11 && r <= 17) || (c === 5 && r >= 11 && r <= 13)) {
           wsp[addr].s.numFmt = '₱#,##0.00';
         }
       }
     }
 
     // Signature section - with outer border (only on edges, no internal borders in merged areas)
-    for (let r = 20; r <= 23; r++) {
+    for (let r = 22; r <= 25; r++) {
       for (let c = 1; c <= 5; c++) {
         const addr = XLSX.utils.encode_cell({ r, c });
         if (!wsp[addr]) wsp[addr] = { v: '', t: 's' };
@@ -2134,7 +2342,7 @@ function generateExcel() {
         const bdr = {};
         if (c === 1) bdr.left = { style: 'thin', color: { rgb: '000000' } };
         if (c === 5) bdr.right = { style: 'thin', color: { rgb: '000000' } };
-        if (r === 23) bdr.bottom = { style: 'thin', color: { rgb: '000000' } };
+        if (r === 25) bdr.bottom = { style: 'thin', color: { rgb: '000000' } };
         
         wsp[addr].s = { 
           border: Object.keys(bdr).length > 0 ? bdr : noBorder,
@@ -2144,22 +2352,30 @@ function generateExcel() {
       }
     }
 
-    // Restore labels for Prepared by and Received by (row 21)
-    wsp['B21'].v = 'Prepared by:';
-    wsp['E21'].v = 'Received by:';
+    // Restore labels for Prepared by and Received by (row 23)
+    wsp['B23'].v = 'Prepared by:';
+    wsp['E23'].v = 'Received by:';
 
     // Merged signature cells - remove all internal borders
-    // B22:C23 merged area (HR signature)
-    wsp['B22'].s.border = { left: { style: 'thin', color: { rgb: '000000' } } };
-    wsp['C22'].s.border = noBorder;
-    wsp['B23'].s.border = { left: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } };
-    wsp['C23'].s.border = { bottom: { style: 'thin', color: { rgb: '000000' } } };
+    // B24:C25 merged area (HR signature)
+    wsp['B24'].s.border = { left: { style: 'thin', color: { rgb: '000000' } } };
+    wsp['C24'].s.border = noBorder;
+    wsp['B25'].s.border = { left: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } };
+    wsp['C25'].s.border = { bottom: { style: 'thin', color: { rgb: '000000' } } };
     
-    // E22:F23 merged area (Employee signature)
-    wsp['E22'].s.border = noBorder;
-    wsp['F22'].s.border = { right: { style: 'thin', color: { rgb: '000000' } } };
-    wsp['E23'].s.border = { bottom: { style: 'thin', color: { rgb: '000000' } } };
-    wsp['F23'].s.border = { right: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } };
+    // E24:F25 merged area (Employee signature)
+    wsp['E24'].s.border = noBorder;
+    wsp['F24'].s.border = { right: { style: 'thin', color: { rgb: '000000' } } };
+    wsp['E25'].s.border = { bottom: { style: 'thin', color: { rgb: '000000' } } };
+    wsp['F25'].s.border = { right: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } };
+    
+    // Hide the holiday helper rows
+    if (holidays.length > 0) {
+      if (!wsp['!rows']) wsp['!rows'] = [];
+      for (let i = 27; i < 29 + holidays.length; i++) {
+        wsp['!rows'][i] = { hidden: true };
+      }
+    }
 
     XLSX.utils.book_append_sheet(wb, wsp, `EMP_${empId}_Payslip`);
     done++;

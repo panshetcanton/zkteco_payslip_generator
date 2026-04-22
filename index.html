@@ -771,7 +771,13 @@
 
   <!-- Employee Selection for Generation -->
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 20px; margin: 16px 0; display: none;" id="empGenerationWrap">
-    <div style="font-size: 12px; font-weight: 600; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 12px;">Select Employees for Generation:</div>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <div style="font-size: 12px; font-weight: 600; color: var(--muted); font-family: 'DM Mono', monospace;">Select Employees for Generation:</div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn-secondary" onclick="selectAllEmployees()" style="padding: 6px 12px; font-size: 11px;">✓ Select All</button>
+        <button class="btn-secondary" onclick="deselectAllEmployees()" style="padding: 6px 12px; font-size: 11px;">✗ Deselect All</button>
+      </div>
+    </div>
     <div id="empCheckboxWrap" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px;"></div>
   </div>
 
@@ -780,20 +786,7 @@
     ⬇ Generate Excel File
   </button>
 
-  <!-- Report Options -->
-  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 20px; margin: 16px 0; display: none;" id="reportOptions">
-    <div style="font-size: 12px; font-weight: 600; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 12px;">Include Reports:</div>
-    <div style="display: flex; gap: 20px;">
-      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-        <input type="checkbox" id="chkMissingLog" checked onchange="generateMissingLog = this.checked">
-        <span style="font-size: 12px; color: var(--text);">Missing Log Report</span>
-      </label>
-      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-        <input type="checkbox" id="chkLateReport" checked onchange="generateLateReport = this.checked">
-        <span style="font-size: 12px; color: var(--text);">Late Report</span>
-      </label>
-    </div>
-  </div>
+
 
   <!-- Progress -->
   <div class="progress-wrap" id="progressWrap">
@@ -814,7 +807,7 @@
   </div>
 
   <div class="note">
-    Generates one sheet per employee (Attendance Log + Payslip) + <span class="tag">Late_Report</span> + <span class="tag">Missing_Log_Report</span> sheets
+    Generates 4 sheets per employee: Attendance Log + Payslip + Missing Log Report + Late Report
   </div>
 </div>
 
@@ -883,7 +876,7 @@
 <script>
 const COLS = ['Date','Day','Time In','Time Out','Duration','Hours Worked','OT (hrs)'];
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-const SHIFT_START_H = 8, SHIFT_START_M = 0;
+const SHIFT_START_H = 9, SHIFT_START_M = 0;
 const WORK_HOURS = 8;
 
 let parsedData = {}; // empId -> [{date, timeIn, timeOut}]
@@ -894,8 +887,6 @@ let activeEmp = null;
 let employees = {}; // empId -> {name, basicPay, hourlyRate, allowance, sss, philhealthRate, pagibig}
 let editingEmpId = null;
 let selectedEmployees = {}; // empId -> true/false for Excel generation
-let generateMissingLog = false;
-let generateLateReport = false;
 
 // ─── Employee Management ──────────────────────────────────────────────────────
 function parseDateRange(payPeriod) {
@@ -1399,12 +1390,7 @@ function processDAT(text) {
   document.getElementById('previewPanel').style.display = 'block';
   document.getElementById('empGenerationWrap').style.display = 'block';
   document.getElementById('btnConvert').style.display = 'block';
-  document.getElementById('reportOptions').style.display = 'block';
   document.getElementById('successBanner').style.display = 'none';
-  generateMissingLog = true;
-  generateLateReport = true;
-  document.getElementById('chkMissingLog').checked = true;
-  document.getElementById('chkLateReport').checked = true;
 }
 
 function updateStats(total) {
@@ -1421,7 +1407,7 @@ function buildPreview() {
   // Build employee chips for PREVIEW only
   const wrap = document.getElementById('empPreviewWrap');
   wrap.innerHTML = '';
-  wrap.style.display = (activeTab === 'attendance' || activeTab === 'payslip') ? 'flex' : 'none';
+  wrap.style.display = (activeTab === 'attendance' || activeTab === 'payslip' || activeTab === 'missing' || activeTab === 'late') ? 'flex' : 'none';
 
   for (const id of empIds) {
     const chip = document.createElement('div');
@@ -1458,6 +1444,24 @@ function buildGenerationCheckboxes() {
 
 function toggleEmployee(empId) {
   selectedEmployees[empId] = document.getElementById(`emp_${empId}`).checked;
+}
+
+function selectAllEmployees() {
+  const empIds = Object.keys(parsedData);
+  for (const id of empIds) {
+    selectedEmployees[id] = true;
+    const checkbox = document.getElementById(`emp_${id}`);
+    if (checkbox) checkbox.checked = true;
+  }
+}
+
+function deselectAllEmployees() {
+  const empIds = Object.keys(parsedData);
+  for (const id of empIds) {
+    selectedEmployees[id] = false;
+    const checkbox = document.getElementById(`emp_${id}`);
+    if (checkbox) checkbox.checked = false;
+  }
 }
 
 function showTab(tab) {
@@ -1497,42 +1501,39 @@ function renderAttendanceTable(empId) {
 
 function renderLateTable() {
   const lateRows = [];
-  const offenseCount = {};
-  for (const empId of Object.keys(parsedData)) {
-    offenseCount[empId] = 0;
-    for (const date of allDates) {
-      const rec = parsedData[empId]?.[date];
-      if (!rec || !rec.timeIn) continue;
-      const [ih, im] = rec.timeIn.split(':').map(Number);
-      const lateMins = (ih * 60 + im) - (8 * 60 + 0);
-      if (lateMins > 0) {
-        offenseCount[empId]++;
-        const d = new Date(date);
-        const lateDisplay = lateMins >= 60 
-          ? `${Math.floor(lateMins / 60)}h ${lateMins % 60}m`
-          : `${lateMins}m`;
-        lateRows.push([empId, date, DAYS[d.getDay()], rec.timeIn, lateDisplay, offenseCount[empId]]);
-      }
+  let offenseCount = 0;
+  for (const date of allDates) {
+    const rec = parsedData[activeEmp]?.[date];
+    if (!rec || !rec.timeIn) continue;
+    const [ih, im] = rec.timeIn.split(':').map(Number);
+    const lateMins = (ih * 60 + im) - (9 * 60 + 0);
+    if (lateMins > 0) {
+      offenseCount++;
+      const d = new Date(date);
+      const lateDisplay = lateMins >= 60 
+        ? `${Math.floor(lateMins / 60)}h ${lateMins % 60}m`
+        : `${lateMins}m`;
+      lateRows.push([date, DAYS[d.getDay()], rec.timeIn, lateDisplay, offenseCount]);
     }
   }
   if (lateRows.length === 0) return '<div style="padding:40px;text-align:center;color:#04AB92;font-family:DM Mono,monospace">✓ No late entries found!</div>';
-  let html = '<table><thead><tr><th>Employee ID</th><th>Date</th><th>Day</th><th>Time In</th><th>Late</th><th>Offense #</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>Date</th><th>Day</th><th>Time In</th><th>Late</th><th>Offense #</th></tr></thead><tbody>';
   for (const row of lateRows) {
     html += `<tr>
-      <td>${row[0]}</td><td>${row[1]}</td><td>${row[2]}</td><td>${row[3]}</td>
+      <td>${row[0]}</td><td>${row[1]}</td><td>${row[2]}</td>
+      <td style="color:#1A4FA0;font-weight:600">${row[3]}</td>
       <td style="color:#CC2229;font-weight:600">${row[4]}</td>
-      <td style="color:#1A4FA0;font-weight:600">${row[5]}</td>
     </tr>`;
   }
   return html + '</tbody></table>';
 }
 
 function renderMissingTable() {
-  if (missingLogs.length === 0) return '<div style="padding:40px;text-align:center;color:#04AB92;font-family:DM Mono,monospace">✓ No missing logs found!</div>';
-  let html = '<table><thead><tr><th>Employee ID</th><th>Date</th><th>Day</th><th>Issue</th></tr></thead><tbody>';
-  for (const m of missingLogs) {
+  const empMissingLogs = missingLogs.filter(m => m.empId === activeEmp);
+  if (empMissingLogs.length === 0) return '<div style="padding:40px;text-align:center;color:#04AB92;font-family:DM Mono,monospace">✓ No missing logs found!</div>';
+  let html = '<table><thead><tr><th>Date</th><th>Day</th><th>Issue</th></tr></thead><tbody>';
+  for (const m of empMissingLogs) {
     html += `<tr>
-      <td>${m.empId}</td>
       <td>${m.date}</td>
       <td>${m.day}</td>
       <td><span class="badge-missing">⚠ ${m.issue}</span></td>
@@ -1758,37 +1759,6 @@ function generateExcel() {
   const warnStyle = { fill: { fgColor: { rgb: 'FFF0F0' } }, font: { color: { rgb: 'CC2229' } } };
   const weekendStyle = { font: { color: { rgb: '1A4FA0' } } };
 
-  // ── Missing Log Report sheet (FIRST) ──
-  progressLabel.textContent = 'Building Missing Log Report…';
-  progressBar.style.width = '10%';
-  progressPct.textContent = '10%';
-
-  if (generateMissingLog) {
-  const missingCols = ['Employee ID', 'Date', 'Day', 'Time In', 'Time Out', 'Issue'];
-  const missingRows = missingLogs.map(m => {
-    const rec = parsedData[m.empId]?.[m.date];
-    return [
-      m.empId,
-      m.date,
-      m.day,
-      rec?.timeIn || '',
-      rec?.timeOut || '',
-      m.issue
-    ];
-  });
-
-  const missingTitle = [['Missing Log Report — March 2026']];
-  const wsData2 = [
-    ...missingTitle,
-    [],
-    missingCols,
-    ...(missingRows.length > 0 ? missingRows : [['No missing logs found', '', '', '', '', '']])
-  ];
-
-  const ws2 = XLSX.utils.aoa_to_sheet(wsData2);
-  ws2['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 22 }];
-  ws2['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
-
   const missingBorder = {
     top:    { style: 'thin', color: { rgb: 'f5b8ba' } },
     bottom: { style: 'thin', color: { rgb: 'f5b8ba' } },
@@ -1796,148 +1766,7 @@ function generateExcel() {
     right:  { style: 'thin', color: { rgb: 'f5b8ba' } }
   };
 
-  // Title style
-  if (ws2['A1']) {
-    ws2['A1'].s = {
-      font: { bold: true, sz: 12, name: 'Arial', color: { rgb: 'FFFFFF' } },
-      fill: { fgColor: { rgb: 'CC2229' } },
-      alignment: { horizontal: 'center', vertical: 'center' },
-      border: missingBorder
-    };
-  }
-  for (let c = 1; c < missingCols.length; c++) {
-    const addr = XLSX.utils.encode_cell({ r: 0, c });
-    if (!ws2[addr]) ws2[addr] = { v: '', t: 's' };
-    ws2[addr].s = { fill: { fgColor: { rgb: 'CC2229' } }, border: missingBorder };
-  }
 
-  // Header style
-  for (let c = 0; c < missingCols.length; c++) {
-    const addr = XLSX.utils.encode_cell({ r: 2, c });
-    if (!ws2[addr]) ws2[addr] = { v: '', t: 's' };
-    ws2[addr].s = {
-      font: { bold: true, color: { rgb: 'FFFFFF' }, name: 'Arial', sz: 10 },
-      fill: { fgColor: { rgb: 'CC2229' } },
-      alignment: { horizontal: 'center', vertical: 'center' },
-      border: missingBorder
-    };
-  }
-
-  // Data rows
-  missingRows.forEach((row, ri) => {
-    const r = ri + 3;
-    for (let c = 0; c < missingCols.length; c++) {
-      const addr = XLSX.utils.encode_cell({ r, c });
-      if (!ws2[addr]) ws2[addr] = { v: '', t: 's' };
-      ws2[addr].s = {
-        font: { name: 'Arial', sz: 10, color: { rgb: c === 5 ? 'CC2229' : '1A2A28' } },
-        fill: { fgColor: { rgb: ri % 2 === 0 ? 'FFF0F0' : 'FFFFFF' } },
-        alignment: { horizontal: 'center', vertical: 'center' },
-        border: missingBorder
-      };
-    }
-  });
-
-  XLSX.utils.book_append_sheet(wb, ws2, 'Missing_Log_Report');
-  done++;
-  }
-
-  if (generateLateReport) {
-  const lateBorder = {
-    top:    { style: 'thin', color: { rgb: 'b2e0d8' } },
-    bottom: { style: 'thin', color: { rgb: 'b2e0d8' } },
-    left:   { style: 'thin', color: { rgb: 'b2e0d8' } },
-    right:  { style: 'thin', color: { rgb: 'b2e0d8' } }
-  };
-
-  // Collect late entries: time in after 08:00
-  const lateRows = [];
-  for (const empId of empIds) {
-    for (const date of allDates) {
-      const rec = parsedData[empId]?.[date];
-      if (!rec || !rec.timeIn) continue;
-      const [ih, im] = rec.timeIn.split(':').map(Number);
-      const inMins = ih * 60 + im;
-      const shiftMins = 8 * 60;
-      const lateMins = inMins - shiftMins;
-      if (lateMins > 0) {
-        const d = new Date(date);
-        // Convert to hours and minutes if >= 60 minutes
-        const lateDisplay = lateMins >= 60 
-          ? `${Math.floor(lateMins / 60)}h ${lateMins % 60}m`
-          : `${lateMins}m`;
-        lateRows.push([empId, date, DAYS[d.getDay()], rec.timeIn, lateDisplay]);
-      }
-    }
-  }
-
-  const lateCols = ['Employee ID', 'Date', 'Day', 'Time In', 'Late'];
-  const ws3 = XLSX.utils.aoa_to_sheet([['Late Report'], [], lateCols]);
-
-  lateRows.forEach((row, ri) => {
-    const r = ri + 3;
-    row.forEach((val, c) => {
-      const addr = XLSX.utils.encode_cell({ r, c });
-      ws3[addr] = { v: val, t: 's' };
-    });
-  });
-
-  if (lateRows.length === 0) {
-    const addr = XLSX.utils.encode_cell({ r: 3, c: 0 });
-    ws3[addr] = { v: 'No late entries found', t: 's' };
-  }
-
-  ws3['!ref'] = `A1:E${Math.max(lateRows.length + 3, 4)}`;
-  ws3['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
-  ws3['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
-
-  // Title
-  ws3['A1'].s = {
-    font: { bold: true, sz: 12, name: 'Arial', color: { rgb: 'FFFFFF' } },
-    fill: { fgColor: { rgb: '1A4FA0' } },
-    alignment: { horizontal: 'center', vertical: 'center' },
-    border: lateBorder
-  };
-  for (let c = 1; c < lateCols.length; c++) {
-    const addr = XLSX.utils.encode_cell({ r: 0, c });
-    if (!ws3[addr]) ws3[addr] = { v: '', t: 's' };
-    ws3[addr].s = { fill: { fgColor: { rgb: '1A4FA0' } }, border: lateBorder };
-  }
-
-  // Header
-  for (let c = 0; c < lateCols.length; c++) {
-    const addr = XLSX.utils.encode_cell({ r: 2, c });
-    if (!ws3[addr]) ws3[addr] = { v: lateCols[c], t: 's' };
-    ws3[addr].s = {
-      font: { bold: true, color: { rgb: 'FFFFFF' }, name: 'Arial', sz: 10 },
-      fill: { fgColor: { rgb: '04AB92' } },
-      alignment: { horizontal: 'center', vertical: 'center' },
-      border: lateBorder
-    };
-  }
-
-  // Data rows grouped by empId
-  lateRows.forEach((row, ri) => {
-    const r = ri + 3;
-    const isNewEmp = ri === 0 || row[0] !== lateRows[ri - 1][0];
-    const bg = ri % 2 === 0 ? 'FFFFFF' : 'F0FAF8';
-    for (let c = 0; c < lateCols.length; c++) {
-      const addr = XLSX.utils.encode_cell({ r, c });
-      if (!ws3[addr]) ws3[addr] = { v: '', t: 's' };
-      ws3[addr].s = {
-        font: { name: 'Arial', sz: 10, bold: c === 0 && isNewEmp, color: { rgb: c === 4 ? 'CC2229' : '1a2a28' } },
-        fill: { fgColor: { rgb: bg } },
-        alignment: { horizontal: 'center', vertical: 'center' },
-        border: lateBorder
-      };
-    }
-  });
-
-  XLSX.utils.book_append_sheet(wb, ws3, 'Late_Report');
-  done++;
-  }
-
-  // ── Per-employee sheets (THIRD onwards) ──
   for (const empId of empIds) {
     // ATTENDANCE SHEET
     progressLabel.textContent = `Building: Employee ${empId}`;
@@ -2334,6 +2163,158 @@ function generateExcel() {
 
     XLSX.utils.book_append_sheet(wb, wsp, `EMP_${empId}_Payslip`);
     done++;
+
+    // MISSING LOG SHEET per employee
+    const empMissingLogs = missingLogs.filter(m => m.empId === empId);
+    const missingCols = ['Date', 'Day', 'Time In', 'Time Out', 'Issue'];
+    const empMissingRows = empMissingLogs.map(m => {
+      const rec = parsedData[m.empId]?.[m.date];
+      return [
+        m.date,
+        m.day,
+        rec?.timeIn || '',
+        rec?.timeOut || '',
+        m.issue
+      ];
+    });
+
+    const missingTitle = [[`Missing Log Report — Employee ${empId}`]];
+    const wsData2 = [
+      ...missingTitle,
+      [],
+      missingCols,
+      ...(empMissingRows.length > 0 ? empMissingRows : [['No missing logs found', '', '', '', '']])
+    ];
+
+    const ws2 = XLSX.utils.aoa_to_sheet(wsData2);
+    ws2['!cols'] = [{ wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 22 }];
+    ws2['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
+
+    // Title style
+    if (ws2['A1']) {
+      ws2['A1'].s = {
+        font: { bold: true, sz: 12, name: 'Arial', color: { rgb: 'FFFFFF' } },
+        fill: { fgColor: { rgb: 'CC2229' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: missingBorder
+      };
+    }
+    for (let c = 1; c < missingCols.length; c++) {
+      const addr = XLSX.utils.encode_cell({ r: 0, c });
+      if (!ws2[addr]) ws2[addr] = { v: '', t: 's' };
+      ws2[addr].s = { fill: { fgColor: { rgb: 'CC2229' } }, border: missingBorder };
+    }
+
+    // Header style
+    for (let c = 0; c < missingCols.length; c++) {
+      const addr = XLSX.utils.encode_cell({ r: 2, c });
+      if (!ws2[addr]) ws2[addr] = { v: '', t: 's' };
+      ws2[addr].s = {
+        font: { bold: true, color: { rgb: 'FFFFFF' }, name: 'Arial', sz: 10 },
+        fill: { fgColor: { rgb: 'CC2229' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: missingBorder
+      };
+    }
+
+    // Data rows
+    empMissingRows.forEach((row, ri) => {
+      const r = ri + 3;
+      for (let c = 0; c < missingCols.length; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c });
+        if (!ws2[addr]) ws2[addr] = { v: '', t: 's' };
+        ws2[addr].s = {
+          font: { name: 'Arial', sz: 10, color: { rgb: c === 4 ? 'CC2229' : '1A2A28' } },
+          fill: { fgColor: { rgb: ri % 2 === 0 ? 'FFF0F0' : 'FFFFFF' } },
+          alignment: { horizontal: 'center', vertical: 'center' },
+          border: missingBorder
+        };
+      }
+    });
+
+    XLSX.utils.book_append_sheet(wb, ws2, `EMP_${empId}_MissingLog`);
+
+    // LATE REPORT SHEET per employee
+    const empLateRows = [];
+    let offenseCount = 0;
+    for (const date of allDates) {
+      const rec = parsedData[empId]?.[date];
+      if (!rec || !rec.timeIn) continue;
+      const [ih, im] = rec.timeIn.split(':').map(Number);
+      const lateMins = (ih * 60 + im) - (9 * 60 + 0);
+      if (lateMins > 0) {
+        offenseCount++;
+        const d = new Date(date);
+        const lateDisplay = lateMins >= 60 
+          ? `${Math.floor(lateMins / 60)}h ${lateMins % 60}m`
+          : `${lateMins}m`;
+        empLateRows.push([date, DAYS[d.getDay()], rec.timeIn, lateDisplay, offenseCount]);
+      }
+    }
+
+    const lateCols = ['Date', 'Day', 'Time In', 'Late', 'Offense #'];
+    const lateTitle = [[`Late Report — Employee ${empId}`]];
+    const wsData3 = [
+      ...lateTitle,
+      [],
+      lateCols,
+      ...(empLateRows.length > 0 ? empLateRows : [['No late entries found', '', '', '', '']])
+    ];
+
+    const ws3 = XLSX.utils.aoa_to_sheet(wsData3);
+    ws3['!cols'] = [{ wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
+    ws3['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
+
+    const lateBorder = {
+      top:    { style: 'thin', color: { rgb: 'b8d4f5' } },
+      bottom: { style: 'thin', color: { rgb: 'b8d4f5' } },
+      left:   { style: 'thin', color: { rgb: 'b8d4f5' } },
+      right:  { style: 'thin', color: { rgb: 'b8d4f5' } }
+    };
+
+    // Title style
+    if (ws3['A1']) {
+      ws3['A1'].s = {
+        font: { bold: true, sz: 12, name: 'Arial', color: { rgb: 'FFFFFF' } },
+        fill: { fgColor: { rgb: '1A4FA0' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: lateBorder
+      };
+    }
+    for (let c = 1; c < lateCols.length; c++) {
+      const addr = XLSX.utils.encode_cell({ r: 0, c });
+      if (!ws3[addr]) ws3[addr] = { v: '', t: 's' };
+      ws3[addr].s = { fill: { fgColor: { rgb: '1A4FA0' } }, border: lateBorder };
+    }
+
+    // Header style
+    for (let c = 0; c < lateCols.length; c++) {
+      const addr = XLSX.utils.encode_cell({ r: 2, c });
+      if (!ws3[addr]) ws3[addr] = { v: '', t: 's' };
+      ws3[addr].s = {
+        font: { bold: true, color: { rgb: 'FFFFFF' }, name: 'Arial', sz: 10 },
+        fill: { fgColor: { rgb: '1A4FA0' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: lateBorder
+      };
+    }
+
+    // Data rows
+    empLateRows.forEach((row, ri) => {
+      const r = ri + 3;
+      for (let c = 0; c < lateCols.length; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c });
+        if (!ws3[addr]) ws3[addr] = { v: '', t: 's' };
+        ws3[addr].s = {
+          font: { name: 'Arial', sz: 10, color: { rgb: c === 3 ? '1A4FA0' : '1A2A28' } },
+          fill: { fgColor: { rgb: ri % 2 === 0 ? 'EEF4FF' : 'FFFFFF' } },
+          alignment: { horizontal: 'center', vertical: 'center' },
+          border: lateBorder
+        };
+      }
+    });
+
+    XLSX.utils.book_append_sheet(wb, ws3, `EMP_${empId}_LateReport`);
   }
 
   // ── Download ──
@@ -2347,7 +2328,7 @@ function generateExcel() {
   const banner = document.getElementById('successBanner');
   banner.style.display = 'block';
   document.getElementById('successDetail').textContent =
-    `${empIds.length} employee sheets + 1 Missing Log Report sheet · ${missingLogs.length} missing log(s) flagged`;
+    `${empIds.length} employee sheets (Attendance + Payslip + Missing Log + Late Report per employee) · ${missingLogs.length} missing log(s) flagged`;
 }
 </script>
 </body>

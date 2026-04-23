@@ -746,6 +746,7 @@
     <p>or click to browse · supports tab-separated attendance data</p>
     <div id="fileBadge" style="display:none" class="file-badge">
       <span>✓</span><span id="fileName"></span>
+      <button onclick="removeUploadedFile(event)" style="background: var(--accent2); color: white; border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; margin-left: 8px;">✕ Remove</button>
     </div>
     <input type="file" id="fileInput" accept=".dat,.txt,.csv">
   </div>
@@ -1345,6 +1346,38 @@ uploadZone.addEventListener('drop', e => {
 });
 fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
 
+function removeUploadedFile(event) {
+  event.stopPropagation(); // Prevent triggering the upload zone click
+  
+  // Clear the file input
+  fileInput.value = '';
+  
+  // Hide file badge
+  document.getElementById('fileBadge').style.display = 'none';
+  document.getElementById('fileName').textContent = '';
+  
+  // Remove has-file class from upload zone
+  uploadZone.classList.remove('has-file');
+  
+  // Clear all data
+  parsedData = {};
+  missingLogs = [];
+  allDates = [];
+  selectedEmployees = {};
+  
+  // Hide all result sections
+  document.getElementById('statsBar').style.display = 'none';
+  document.getElementById('previewPanel').style.display = 'none';
+  document.getElementById('empGenerationWrap').style.display = 'none';
+  document.getElementById('btnConvert').style.display = 'none';
+  document.getElementById('successBanner').style.display = 'none';
+  
+  // Reset stats
+  document.getElementById('statRecords').textContent = '0';
+  document.getElementById('statEmployees').textContent = '0';
+  document.getElementById('statMissing').textContent = '0';
+}
+
 function handleFile(file) {
   const reader = new FileReader();
   reader.onload = e => {
@@ -1652,36 +1685,29 @@ function renderPayslipPreview(empId) {
   let holidayHours = 0;
   let otRegular = 0;
   let otWeekend = 0;
-  let otHolidayWeekday = 0;  // Holiday OT on weekdays
-  let otHolidayWeekend = 0;  // Holiday OT on weekends
-  let holidayDaysNotWorked = 0; // Count of holidays where employee didn't work
+  let otHolidayWeekday = 0;
+  let otHolidayWeekend = 0;
+  let holidayDaysNotWorked = 0;
   
-  // Check ALL holidays (not just those in attendance data)
+  // OPTIMIZATION: Convert to Sets for O(1) lookup
+  const holidaySet = new Set(holidays);
+  const workedDatesSet = new Set(rows.filter(r => r[2] && r[2] !== '—').map(r => r[0]));
+  
+  // OPTIMIZATION: Single loop to check holidays and count not worked
   for (const holidayDate of holidays) {
     const d = new Date(holidayDate);
     const dayOfWeek = d.getDay();
     // Only count weekday holidays (Monday-Friday = 1-5)
     if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-      // Check if this holiday date is within the pay period
-      if (allDates.includes(holidayDate)) {
-        // Check if employee has time-in record for this holiday
-        const worked = rows.some(row => row[0] === holidayDate && row[2] && row[2] !== '—');
-        if (!worked) {
+      if (holidayDate >= payPeriodStart && holidayDate <= payPeriodEnd) {
+        if (!workedDatesSet.has(holidayDate)) {
           holidayDaysNotWorked++;
-        }
-      } else {
-        // Holiday is not in pay period attendance, but still count it if it's in the date range
-        const payPeriodStart = document.getElementById('payPeriodStart')?.value || '';
-        const payPeriodEnd = document.getElementById('payPeriodEnd')?.value || '';
-        if (payPeriodStart && payPeriodEnd) {
-          if (holidayDate >= payPeriodStart && holidayDate <= payPeriodEnd) {
-            holidayDaysNotWorked++;
-          }
         }
       }
     }
   }
   
+  // Single loop through rows to calculate all totals
   for (const row of rows) {
     const date = row[0];
     const day = row[1];
@@ -1690,7 +1716,7 @@ function renderPayslipPreview(empId) {
     
     totalHoursWorked += hoursWorked;
     
-    const isHoliday = holidays.includes(date);
+    const isHoliday = holidaySet.has(date);
     const isWeekend = day === 'Saturday' || day === 'Sunday';
     
     if (isHoliday) {
@@ -1855,11 +1881,25 @@ function generateExcel() {
   progressBar.style.width = '5%';
   progressPct.textContent = '5%';
 
+  // Use setTimeout to allow UI to update
+  setTimeout(() => {
+    try {
+      generateExcelAsync(progressWrap, progressBar, progressLabel, progressPct);
+    } catch (error) {
+      console.error('Excel generation error:', error);
+      alert('Error generating Excel: ' + error.message);
+      progressWrap.style.display = 'none';
+    }
+  }, 100);
+}
+
+function generateExcelAsync(progressWrap, progressBar, progressLabel, progressPct) {
   const wb = XLSX.utils.book_new();
   const empIds = Object.keys(parsedData).filter(id => selectedEmployees[id]);
   
   if (empIds.length === 0) {
     alert('Please select at least one employee to generate reports.');
+    progressWrap.style.display = 'none';
     return;
   }
   
@@ -1886,8 +1926,9 @@ function generateExcel() {
 
   for (const empId of empIds) {
     // ATTENDANCE SHEET
-    progressLabel.textContent = `Building: Employee ${empId}`;
-    progressBar.style.width = Math.round(20 + (done / empIds.length) * 80) + '%';
+    progressLabel.textContent = `Building Attendance: Employee ${empId} (${done + 1}/${empIds.length})`;
+    progressBar.style.width = Math.round(20 + (done / empIds.length) * 20) + '%';
+    progressPct.textContent = Math.round(20 + (done / empIds.length) * 20) + '%';
 
     const rows = buildAttendanceRows(empId);
 
@@ -1994,9 +2035,16 @@ function generateExcel() {
     ws['!rowheights'] = [{ hpt: 22 }, { hpt: 6 }, { hpt: 18 }];
 
     XLSX.utils.book_append_sheet(wb, ws, `EMP_${empId}_Attendance`);
-    done++;
 
     // PAYSLIP SHEET
+    progressLabel.textContent = `Building Payslip: Employee ${empId} (${done + 1}/${empIds.length})`;
+    progressBar.style.width = Math.round(40 + (done / empIds.length) * 20) + '%';
+    progressPct.textContent = Math.round(40 + (done / empIds.length) * 20) + '%';
+    
+    // Get pay period settings FIRST
+    const payPeriodStart = document.getElementById('payPeriodStart')?.value || '';
+    const payPeriodEnd = document.getElementById('payPeriodEnd')?.value || '';
+    
     const empData = getEmployeeData(empId);
     const empName = empData ? empData.name : '';
     const basicPayDaily = empData ? empData.basicPay : 695;
@@ -2006,41 +2054,34 @@ function generateExcel() {
     const pagibig = empData ? empData.pagibig : 100;
     const philhealthRate = empData ? empData.philhealthRate : 5;
     
+    // OPTIMIZATION: Convert to Sets and pre-calculate worked dates
+    const holidaySet = new Set(holidays);
+    const workedDatesSet = new Set(rows.filter(r => r[2] && r[2] !== '—').map(r => r[0]));
+    
     // Calculate holiday hours and OT from attendance data
     let holidayHours = 0;
     let holidayOTWeekday = 0;
     let holidayOTWeekend = 0;
     let holidayDaysNotWorked = 0;
     
-    // Check ALL holidays (not just those in attendance data)
+    // OPTIMIZATION: Single loop to check holidays
     for (const holidayDate of holidays) {
       const d = new Date(holidayDate);
       const dayOfWeek = d.getDay();
-      // Only count weekday holidays (Monday-Friday = 1-5)
       if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-        // Check if this holiday date is within the pay period
-        if (allDates.includes(holidayDate)) {
-          // Check if employee has time-in record for this holiday
-          const worked = rows.some(row => row[0] === holidayDate && row[2] && row[2] !== '—');
-          if (!worked) {
+        if (holidayDate >= payPeriodStart && holidayDate <= payPeriodEnd) {
+          if (!workedDatesSet.has(holidayDate)) {
             holidayDaysNotWorked++;
-          }
-        } else {
-          // Holiday is not in attendance data, check if it's in the pay period range
-          if (payPeriodStart && payPeriodEnd) {
-            if (holidayDate >= payPeriodStart && holidayDate <= payPeriodEnd) {
-              holidayDaysNotWorked++;
-            }
           }
         }
       }
     }
     
-    // Then, add actual hours worked on holidays
+    // Single loop through rows to calculate holiday hours and OT
     for (let i = 0; i < rows.length; i++) {
       const date = rows[i][0];
       const day = rows[i][1];
-      if (holidays.includes(date)) {
+      if (holidaySet.has(date)) {
         const hoursWorked = typeof rows[i][5] === 'number' ? rows[i][5] : 0;
         const ot = typeof rows[i][6] === 'number' ? rows[i][6] : 0;
         holidayHours += hoursWorked; // Just the hours worked, no doubling
@@ -2054,10 +2095,6 @@ function generateExcel() {
         }
       }
     }
-    
-    // Get pay period settings
-    const payPeriodStart = document.getElementById('payPeriodStart')?.value || '';
-    const payPeriodEnd = document.getElementById('payPeriodEnd')?.value || '';
     
     // Format pay period as "March 1-15, 2026" or "March 1 - April 9, 2026"
     let payPeriod = '';
@@ -2118,10 +2155,7 @@ function generateExcel() {
       ['', 'Prepared by:', '', '', 'Received by:'],
       [],
       ['', '_______________________', '', '', '_______________________'],
-      ['', 'HR / Payroll Officer', '', '', empName || `Employee ${empId}`],
-      [],
-      ['', '--- Holiday Dates ---'],
-      ...holidays.map(h => ['', h])
+      ['', 'HR / Payroll Officer', '', '', empName || `Employee ${empId}`]
     ];
 
     const wsp = XLSX.utils.aoa_to_sheet(payslipData);
@@ -2129,7 +2163,6 @@ function generateExcel() {
     // Reference to attendance sheet for calculations
     const attSheetName = `EMP_${empId}_Attendance`;
     const attLastRow = rows.length + 3;
-    const holidayListStart = 28;
 
     // C11: Basic Pay = SUM of Hours Worked (F column) * Hourly Rate (F8) + (not_worked_holidays * daily_basic_pay)
     // Count weekday holidays where employee didn't work
@@ -2153,35 +2186,16 @@ function generateExcel() {
     
     wsp['C12'] = { t: 'n', f: `(SUMIF('${attSheetName}'!B:B,"Saturday",'${attSheetName}'!F:F)+SUMIF('${attSheetName}'!B:B,"Sunday",'${attSheetName}'!F:F))*F8*0.3`, z: '₱#,##0.00' };
     
-    // C13: Holiday Pay with formula - only for hours worked on holidays
-    if (holidays.length > 0) {
-      const holidayWorkedFormula = holidays.map((h, idx) => 
-        `SUMIF('${attSheetName}'!A:A,B${holidayListStart + idx + 1},'${attSheetName}'!F:F)`
-      ).join('+');
-      
-      wsp['C13'] = { t: 'n', f: `(${holidayWorkedFormula})*F8`, z: '₱#,##0.00' };
-    } else {
-      wsp['C13'] = { t: 'n', v: 0, z: '₱#,##0.00' };
-    }
+    // OPTIMIZATION: Use pre-calculated values instead of complex SUMIF formulas
+    wsp['C13'] = { t: 'n', v: holidayHours * hourlyRate, z: '₱#,##0.00' };
     
     wsp['C14'] = { t: 'n', f: `SUMIFS('${attSheetName}'!G:G,'${attSheetName}'!B:B,"<>Saturday",'${attSheetName}'!B:B,"<>Sunday")*F8*1.25`, z: '₱#,##0.00' };
     
     wsp['C15'] = { t: 'n', f: `(SUMIF('${attSheetName}'!B:B,"Saturday",'${attSheetName}'!G:G)+SUMIF('${attSheetName}'!B:B,"Sunday",'${attSheetName}'!G:G))*F8*1.3`, z: '₱#,##0.00' };
     
-    // C16: OT Pay (Holiday) with formula - Weekday: 1.25x, Weekend: 1.3x
-    if (holidays.length > 0) {
-      const holidayOTFormulaParts = holidays.map((h, idx) => {
-        const d = new Date(h);
-        const dayOfWeek = d.getDay();
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-        const rate = isWeekend ? 1.3 : 1.25;
-        return `(SUMIF('${attSheetName}'!A:A,B${holidayListStart + idx + 1},'${attSheetName}'!G:G)*${rate})`;
-      });
-      
-      wsp['C16'] = { t: 'n', f: `(${holidayOTFormulaParts.join('+')})${holidayOTFormulaParts.length > 0 ? '*F8' : ''}`, z: '₱#,##0.00' };
-    } else {
-      wsp['C16'] = { t: 'n', v: 0, z: '₱#,##0.00' };
-    }
+    // OPTIMIZATION: Use pre-calculated values instead of complex SUMIF formulas
+    const holidayOTPay = (holidayOTWeekday * 1.25 + holidayOTWeekend * 1.3) * hourlyRate;
+    wsp['C16'] = { t: 'n', v: holidayOTPay, z: '₱#,##0.00' };
     
     // C18: Gross Pay = SUM(C11:C17)
     wsp['C18'] = { t: 'n', f: 'SUM(C11:C17)', z: '₱#,##0.00' };
@@ -2204,7 +2218,7 @@ function generateExcel() {
     // Employee name placeholder in signature
     wsp['E26'] = { v: empName || `Employee ${empId}`, t: 's' };
 
-    wsp['!ref'] = `A1:G${26 + holidays.length + 2}`;
+    wsp['!ref'] = `A1:G26`;
     wsp['!cols'] = [{ wch: 3 }, { wch: 20 }, { wch: 15 }, { wch: 3 }, { wch: 18 }, { wch: 15 }, { wch: 3 }];
     wsp['!merges'] = [
       { s: { r: 1, c: 1 }, e: { r: 1, c: 5 } },
@@ -2382,19 +2396,14 @@ function generateExcel() {
     wsp['F24'].s.border = { right: { style: 'thin', color: { rgb: '000000' } } };
     wsp['E25'].s.border = { bottom: { style: 'thin', color: { rgb: '000000' } } };
     wsp['F25'].s.border = { right: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } };
-    
-    // Hide the holiday helper rows
-    if (holidays.length > 0) {
-      if (!wsp['!rows']) wsp['!rows'] = [];
-      for (let i = 27; i < 29 + holidays.length; i++) {
-        wsp['!rows'][i] = { hidden: true };
-      }
-    }
 
     XLSX.utils.book_append_sheet(wb, wsp, `EMP_${empId}_Payslip`);
-    done++;
 
     // MISSING LOG SHEET per employee
+    progressLabel.textContent = `Building Missing Log: Employee ${empId} (${done + 1}/${empIds.length})`;
+    progressBar.style.width = Math.round(60 + (done / empIds.length) * 15) + '%';
+    progressPct.textContent = Math.round(60 + (done / empIds.length) * 15) + '%';
+    
     const empMissingLogs = missingLogs.filter(m => m.empId === empId);
     const missingCols = ['Date', 'Day', 'Time In', 'Time Out', 'Issue'];
     const empMissingRows = empMissingLogs.map(m => {
@@ -2465,6 +2474,10 @@ function generateExcel() {
     XLSX.utils.book_append_sheet(wb, ws2, `EMP_${empId}_MissingLog`);
 
     // LATE REPORT SHEET per employee
+    progressLabel.textContent = `Building Late Report: Employee ${empId} (${done + 1}/${empIds.length})`;
+    progressBar.style.width = Math.round(75 + (done / empIds.length) * 15) + '%';
+    progressPct.textContent = Math.round(75 + (done / empIds.length) * 15) + '%';
+    
     const empLateRows = [];
     let offenseCount = 0;
     for (const date of allDates) {
@@ -2545,20 +2558,29 @@ function generateExcel() {
     });
 
     XLSX.utils.book_append_sheet(wb, ws3, `EMP_${empId}_LateReport`);
+    
+    done++;
   }
 
   // ── Download ──
-  progressBar.style.width = '100%';
-  progressPct.textContent = '100%';
-  progressLabel.textContent = 'Done!';
+  progressBar.style.width = '95%';
+  progressPct.textContent = '95%';
+  progressLabel.textContent = 'Finalizing Excel file...';
+  
+  // Use setTimeout to allow UI to update before final write
+  setTimeout(() => {
+    XLSX.writeFile(wb, 'attendance_log.xlsx');
 
-  XLSX.writeFile(wb, 'attendance_log.xlsx');
+    progressBar.style.width = '100%';
+    progressPct.textContent = '100%';
+    progressLabel.textContent = 'Done!';
 
-  progressWrap.style.display = 'none';
-  const banner = document.getElementById('successBanner');
-  banner.style.display = 'block';
-  document.getElementById('successDetail').textContent =
-    `${empIds.length} employee sheets (Attendance + Payslip + Missing Log + Late Report per employee) · ${missingLogs.length} missing log(s) flagged`;
+    progressWrap.style.display = 'none';
+    const banner = document.getElementById('successBanner');
+    banner.style.display = 'block';
+    document.getElementById('successDetail').textContent =
+      `${empIds.length} employee sheets (Attendance + Payslip + Missing Log + Late Report per employee) · ${missingLogs.length} missing log(s) flagged`;
+  }, 100);
 }
 </script>
 </body>

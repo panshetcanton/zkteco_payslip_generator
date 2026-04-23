@@ -736,9 +736,7 @@
     <div id="holidayList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 12px;">
       <!-- Holiday dates will be added here -->
     </div>
-    <div style="font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace;">
-      💡 Holidays will be paid at 2x the hourly rate (double pay)
-    </div>
+
   </div>
 
   <!-- Upload Zone -->
@@ -1615,7 +1613,7 @@ function renderPayslipPreview(empId) {
   const payPeriodStart = document.getElementById('payPeriodStart')?.value || '';
   const payPeriodEnd = document.getElementById('payPeriodEnd')?.value || '';
   
-  // Format pay period as "March 1-15, 2026"
+  // Format pay period as "March 1-15, 2026" or "March 1 - April 9, 2026"
   let payPeriod = '';
   if (payPeriodStart && payPeriodEnd) {
     const startDate = new Date(payPeriodStart);
@@ -1623,9 +1621,17 @@ function renderPayslipPreview(empId) {
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     const startDay = startDate.getDate();
     const endDay = endDate.getDate();
-    const month = monthNames[startDate.getMonth()];
+    const startMonth = monthNames[startDate.getMonth()];
+    const endMonth = monthNames[endDate.getMonth()];
     const year = startDate.getFullYear();
-    payPeriod = `${month} ${startDay}-${endDay}, ${year}`;
+    
+    if (startDate.getMonth() === endDate.getMonth()) {
+      // Same month: "March 1-15, 2026"
+      payPeriod = `${startMonth} ${startDay}-${endDay}, ${year}`;
+    } else {
+      // Different months: "March 1 - April 9, 2026"
+      payPeriod = `${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
+    }
   }
   
   // Format pay date as "March 15, 2026"
@@ -2053,7 +2059,7 @@ function generateExcel() {
     const payPeriodStart = document.getElementById('payPeriodStart')?.value || '';
     const payPeriodEnd = document.getElementById('payPeriodEnd')?.value || '';
     
-    // Format pay period as "March 1-15, 2026"
+    // Format pay period as "March 1-15, 2026" or "March 1 - April 9, 2026"
     let payPeriod = '';
     if (payPeriodStart && payPeriodEnd) {
       const startDate = new Date(payPeriodStart);
@@ -2061,9 +2067,17 @@ function generateExcel() {
       const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
       const startDay = startDate.getDate();
       const endDay = endDate.getDate();
-      const month = monthNames[startDate.getMonth()];
+      const startMonth = monthNames[startDate.getMonth()];
+      const endMonth = monthNames[endDate.getMonth()];
       const year = startDate.getFullYear();
-      payPeriod = `${month} ${startDay}-${endDay}, ${year}`;
+      
+      if (startDate.getMonth() === endDate.getMonth()) {
+        // Same month: "March 1-15, 2026"
+        payPeriod = `${startMonth} ${startDay}-${endDay}, ${year}`;
+      } else {
+        // Different months: "March 1 - April 9, 2026"
+        payPeriod = `${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
+      }
     }
     
     // Format pay date as "March 15, 2026"

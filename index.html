@@ -857,8 +857,8 @@
             <input type="number" id="empAllowance" step="0.01" value="0">
           </div>
           <div class="form-group">
-            <label>SSS (₱) *</label>
-            <input type="number" id="empSSS" step="0.01" required>
+            <label>SSS Loan (₱) - Optional</label>
+            <input type="number" id="empSSSLoan" step="0.01" value="0">
           </div>
           <div class="form-group">
             <label>PhilHealth Rate (%) *</label>
@@ -866,7 +866,11 @@
           </div>
           <div class="form-group">
             <label>Pag-IBIG (₱) *</label>
-            <input type="number" id="empPagibig" step="0.01" required>
+            <input type="number" id="empPagibig" step="0.01" value="200" required>
+          </div>
+          <div class="form-group">
+            <label>Pag-IBIG Loan (₱) - Optional</label>
+            <input type="number" id="empPagibigLoan" step="0.01" value="0">
           </div>
         </div>
         <button type="submit" class="btn-primary">💾 Save Employee</button>
@@ -897,11 +901,70 @@ let missingLogs = []; // [{empId, date, day, issue}]
 let allDates = [];
 let activeTab = 'attendance';
 let activeEmp = null;
-let employees = {}; // empId -> {name, basicPay, hourlyRate, allowance, sss, philhealthRate, pagibig}
+let employees = {}; // empId -> {name, basicPay, hourlyRate, allowance, sss, sssLoan, philhealthRate, pagibig, pagibigLoan}
 let editingEmpId = null;
 let selectedEmployees = {}; // empId -> true/false for Excel generation
 let holidays = []; // Array of holiday dates in YYYY-MM-DD format
 let holidayCounter = 0; // Counter for unique holiday IDs
+
+// SSS Contribution Table 2024 (Monthly Salary Range -> Employee Share)
+const SSS_TABLE = [
+  { min: 0, max: 4249.99, employee: 180 },
+  { min: 4250, max: 4749.99, employee: 202.50 },
+  { min: 4750, max: 5249.99, employee: 225 },
+  { min: 5250, max: 5749.99, employee: 247.50 },
+  { min: 5750, max: 6249.99, employee: 270 },
+  { min: 6250, max: 6749.99, employee: 292.50 },
+  { min: 6750, max: 7249.99, employee: 315 },
+  { min: 7250, max: 7749.99, employee: 337.50 },
+  { min: 7750, max: 8249.99, employee: 360 },
+  { min: 8250, max: 8749.99, employee: 382.50 },
+  { min: 8750, max: 9249.99, employee: 405 },
+  { min: 9250, max: 9749.99, employee: 427.50 },
+  { min: 9750, max: 10249.99, employee: 450 },
+  { min: 10250, max: 10749.99, employee: 472.50 },
+  { min: 10750, max: 11249.99, employee: 495 },
+  { min: 11250, max: 11749.99, employee: 517.50 },
+  { min: 11750, max: 12249.99, employee: 540 },
+  { min: 12250, max: 12749.99, employee: 562.50 },
+  { min: 12750, max: 13249.99, employee: 585 },
+  { min: 13250, max: 13749.99, employee: 607.50 },
+  { min: 13750, max: 14249.99, employee: 630 },
+  { min: 14250, max: 14749.99, employee: 652.50 },
+  { min: 14750, max: 15249.99, employee: 675 },
+  { min: 15250, max: 15749.99, employee: 697.50 },
+  { min: 15750, max: 16249.99, employee: 720 },
+  { min: 16250, max: 16749.99, employee: 742.50 },
+  { min: 16750, max: 17249.99, employee: 765 },
+  { min: 17250, max: 17749.99, employee: 787.50 },
+  { min: 17750, max: 18249.99, employee: 810 },
+  { min: 18250, max: 18749.99, employee: 832.50 },
+  { min: 18750, max: 19249.99, employee: 855 },
+  { min: 19250, max: 19749.99, employee: 877.50 },
+  { min: 19750, max: 20249.99, employee: 900 },
+  { min: 20250, max: 20749.99, employee: 922.50 },
+  { min: 20750, max: 21249.99, employee: 945 },
+  { min: 21250, max: 21749.99, employee: 967.50 },
+  { min: 21750, max: 22249.99, employee: 990 },
+  { min: 22250, max: 22749.99, employee: 1012.50 },
+  { min: 22750, max: 23249.99, employee: 1035 },
+  { min: 23250, max: 23749.99, employee: 1057.50 },
+  { min: 23750, max: 24249.99, employee: 1080 },
+  { min: 24250, max: 24749.99, employee: 1102.50 },
+  { min: 24750, max: 29749.99, employee: 1125 },
+  { min: 29750, max: Infinity, employee: 1350 }
+];
+
+function calculateSSS(dailyPay) {
+  if (!dailyPay || dailyPay <= 0) return 0;
+  const monthlySalary = dailyPay * 22; // Estimate monthly salary
+  for (const bracket of SSS_TABLE) {
+    if (monthlySalary >= bracket.min && monthlySalary <= bracket.max) {
+      return bracket.employee;
+    }
+  }
+  return 1350; // Maximum contribution
+}
 
 // ─── Holiday Management ──────────────────────────────────────────────────────
 function addHolidayDate() {
@@ -1044,9 +1107,13 @@ function enrollEmployee(e) {
   const basicPay = parseFloat(document.getElementById('empBasicPay').value);
   const hourlyRate = parseFloat(document.getElementById('empHourlyRate').value);
   const allowance = parseFloat(document.getElementById('empAllowance').value) || 0;
-  const sss = parseFloat(document.getElementById('empSSS').value);
+  const sssLoan = parseFloat(document.getElementById('empSSSLoan').value) || 0;
   const philhealthRate = parseFloat(document.getElementById('empPhilHealthRate').value);
   const pagibig = parseFloat(document.getElementById('empPagibig').value);
+  const pagibigLoan = parseFloat(document.getElementById('empPagibigLoan').value) || 0;
+  
+  // Auto-calculate SSS based on daily pay
+  const sss = calculateSSS(basicPay);
 
   if (!editingEmpId && employees[empId]) {
     alert(`Employee ID ${empId} already exists. Use Edit to modify.`);
@@ -1054,7 +1121,7 @@ function enrollEmployee(e) {
   }
 
   const targetId = editingEmpId || empId;
-  employees[targetId] = { name, basicPay, hourlyRate, allowance, sss, philhealthRate, pagibig };
+  employees[targetId] = { name, basicPay, hourlyRate, allowance, sss, sssLoan, philhealthRate, pagibig, pagibigLoan };
   saveEmployees();
   
   alert(editingEmpId ? 'Employee updated!' : 'Employee enrolled!');
@@ -1073,9 +1140,10 @@ function editEmployee(empId) {
   document.getElementById('empBasicPay').value = emp.basicPay;
   document.getElementById('empHourlyRate').value = emp.hourlyRate;
   document.getElementById('empAllowance').value = emp.allowance;
-  document.getElementById('empSSS').value = emp.sss;
+  document.getElementById('empSSSLoan').value = emp.sssLoan || 0;
   document.getElementById('empPhilHealthRate').value = emp.philhealthRate;
   document.getElementById('empPagibig').value = emp.pagibig;
+  document.getElementById('empPagibigLoan').value = emp.pagibigLoan || 0;
 }
 
 function deleteEmployee(empId) {
@@ -1095,7 +1163,7 @@ function renderEmployeeList() {
     return;
   }
 
-  let html = '<table><thead><tr><th>ID</th><th>Name</th><th>Daily Pay</th><th>Hourly</th><th>SSS</th><th>PhilHealth %</th><th>Pag-IBIG</th><th>Actions</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>ID</th><th>Name</th><th>Daily Pay</th><th>Hourly</th><th>Allowance</th><th>SSS (Auto)</th><th>SSS Loan</th><th>PhilHealth %</th><th>Pag-IBIG</th><th>Pag-IBIG Loan</th><th>Actions</th></tr></thead><tbody>';
   for (const id of empIds) {
     const e = employees[id];
     html += `<tr>
@@ -1103,9 +1171,12 @@ function renderEmployeeList() {
       <td>${e.name}</td>
       <td>₱${e.basicPay.toFixed(2)}</td>
       <td>₱${e.hourlyRate.toFixed(2)}</td>
+      <td>₱${e.allowance.toFixed(2)}</td>
       <td>₱${e.sss.toFixed(2)}</td>
+      <td>₱${(e.sssLoan || 0).toFixed(2)}</td>
       <td>${e.philhealthRate}%</td>
       <td>₱${e.pagibig.toFixed(2)}</td>
+      <td>₱${(e.pagibigLoan || 0).toFixed(2)}</td>
       <td class="actions">
         <button class="btn-secondary" onclick="editEmployee('${id}')">✏️ Edit</button>
         <button class="btn-danger" onclick="deleteEmployee('${id}')">🗑️</button>
@@ -1128,7 +1199,7 @@ function exportEmployees() {
   
   // Prepare data array with title
   const title = [['EMPLOYEE MASTER LIST']];
-  const headers = ['Employee ID', 'Name', 'Daily Basic Pay', 'Hourly Rate', 'Allowance', 'SSS', 'PhilHealth Rate (%)', 'Pag-IBIG'];
+  const headers = ['Employee ID', 'Name', 'Daily Basic Pay', 'Hourly Rate', 'Allowance', 'SSS (Auto)', 'SSS Loan', 'PhilHealth Rate (%)', 'Pag-IBIG', 'Pag-IBIG Loan'];
   const data = [
     ...title,
     [],
@@ -1144,8 +1215,10 @@ function exportEmployees() {
       e.hourlyRate,
       e.allowance,
       e.sss,
+      e.sssLoan || 0,
       e.philhealthRate,
-      e.pagibig
+      e.pagibig,
+      e.pagibigLoan || 0
     ]);
   }
   
@@ -1159,13 +1232,15 @@ function exportEmployees() {
     { wch: 18 },  // Daily Basic Pay
     { wch: 15 },  // Hourly Rate
     { wch: 12 },  // Allowance
-    { wch: 12 },  // SSS
+    { wch: 14 },  // SSS (Auto)
+    { wch: 12 },  // SSS Loan
     { wch: 20 },  // PhilHealth Rate (%)
-    { wch: 12 }   // Pag-IBIG
+    { wch: 12 },  // Pag-IBIG
+    { wch: 15 }   // Pag-IBIG Loan
   ];
   
   // Merge title cells
-  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }];
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 9 } }];
   
   const cellBorder = {
     top: { style: 'thin', color: { rgb: '000000' } },
@@ -1183,7 +1258,7 @@ function exportEmployees() {
   };
   
   // Fill merged title cells with same style
-  for (let c = 1; c < headers.length; c++) {
+  for (let c = 1; c < 10; c++) {
     const cellAddr = XLSX.utils.encode_cell({ r: 0, c });
     if (!ws[cellAddr]) ws[cellAddr] = { v: '', t: 's' };
     ws[cellAddr].s = {
@@ -1200,7 +1275,7 @@ function exportEmployees() {
     border: cellBorder
   };
   
-  for (let c = 0; c < headers.length; c++) {
+  for (let c = 0; c < 10; c++) {
     const cellAddr = XLSX.utils.encode_cell({ r: 2, c });
     if (!ws[cellAddr]) ws[cellAddr] = { v: '', t: 's' };
     ws[cellAddr].s = headerStyle;
@@ -1218,7 +1293,7 @@ function exportEmployees() {
     const rowIndex = r + 3; // Data starts at row 3 (0-indexed)
     const bg = r % 2 === 0 ? 'FFFFFF' : 'F0FAF8'; // Alternating white and light green
     
-    for (let c = 0; c < headers.length; c++) {
+    for (let c = 0; c < 10; c++) {
       const cellAddr = XLSX.utils.encode_cell({ r: rowIndex, c });
       if (!ws[cellAddr]) ws[cellAddr] = { v: '', t: 's' };
       
@@ -1229,19 +1304,19 @@ function exportEmployees() {
         border: dataBorder
       };
       
-      // Format currency columns (Daily Basic Pay, Hourly Rate, Allowance, SSS, Pag-IBIG)
-      if (c === 2 || c === 3 || c === 4 || c === 5 || c === 7) {
+      // Format currency columns (Daily Basic Pay, Hourly Rate, Allowance, SSS, SSS Loan, Pag-IBIG, Pag-IBIG Loan)
+      if (c === 2 || c === 3 || c === 4 || c === 5 || c === 6 || c === 8 || c === 9) {
         ws[cellAddr].z = '₱#,##0.00';
       }
       // Format percentage column (PhilHealth Rate)
-      if (c === 6) {
+      if (c === 7) {
         ws[cellAddr].z = '0.00';
       }
     }
   }
   
   // Set reference range
-  ws['!ref'] = `A1:H${empIds.length + 3}`;
+  ws['!ref'] = `A1:J${empIds.length + 3}`;
   
   // Add worksheet to workbook
   XLSX.utils.book_append_sheet(wb, ws, 'Employees');
@@ -1280,7 +1355,7 @@ function importEmployees(e) {
       // Skip title (row 0), blank (row 1), and header (row 2) - start from row 3
       for (let i = 3; i < jsonData.length; i++) {
         const row = jsonData[i];
-        if (!row || row.length < 8) {
+        if (!row || row.length < 10) {
           console.log(`Skipping row ${i} - insufficient columns`);
           continue;
         }
@@ -1291,14 +1366,18 @@ function importEmployees(e) {
           continue;
         }
         
+        const basicPay = parseFloat(row[2]) || 0;
+        
         imported[empId] = {
           name: String(row[1] || '').trim(),
-          basicPay: parseFloat(row[2]) || 0,
+          basicPay: basicPay,
           hourlyRate: parseFloat(row[3]) || 0,
           allowance: parseFloat(row[4]) || 0,
-          sss: parseFloat(row[5]) || 0,
-          philhealthRate: parseFloat(row[6]) || 5,
-          pagibig: parseFloat(row[7]) || 0
+          sss: calculateSSS(basicPay), // Auto-calculate SSS
+          sssLoan: parseFloat(row[6]) || 0,
+          philhealthRate: parseFloat(row[7]) || 5,
+          pagibig: parseFloat(row[8]) || 0,
+          pagibigLoan: parseFloat(row[9]) || 0
         };
         console.log(`Imported employee ${empId}:`, imported[empId]);
       }
@@ -1741,7 +1820,15 @@ function renderPayslipPreview(empId) {
   const hourlyRate = empData ? empData.hourlyRate : null;
   const allowance = empData ? empData.allowance : null;
   const sss = empData ? empData.sss : null;
+  const sssLoan = empData ? (empData.sssLoan || 0) : null;
   const pagibig = empData ? empData.pagibig : null;
+  const pagibigLoan = empData ? (empData.pagibigLoan || 0) : null;
+  
+  // Count days present in attendance log (full days + half days)
+  // Full day = Hours Worked >= 4, Half day = Hours Worked < 4 but > 0
+  const fullDays = rows.filter(r => typeof r[5] === 'number' && r[5] >= 4).length;
+  const halfDays = rows.filter(r => typeof r[5] === 'number' && r[5] > 0 && r[5] < 4).length;
+  const daysPresent = fullDays + (halfDays * 0.5);
   
   const basicPay = hourlyRate ? (totalHoursWorked * hourlyRate + holidayDaysNotWorked * basicPayDaily) : null;
   const weekendPremium = hourlyRate ? weekendHours * hourlyRate * 0.3 : null;
@@ -1749,7 +1836,8 @@ function renderPayslipPreview(empId) {
   const otRegularPay = hourlyRate ? otRegular * hourlyRate * 1.25 : null;
   const otWeekendPay = hourlyRate ? otWeekend * hourlyRate * 1.3 : null;
   const otHolidayPay = hourlyRate ? (otHolidayWeekday * hourlyRate * 1.25 + otHolidayWeekend * hourlyRate * 1.3) : null; // Weekday: 1.25, Weekend: 1.3
-  const grossPay = (basicPay !== null && allowance !== null) ? basicPay + weekendPremium + holidayPay + otRegularPay + otWeekendPay + otHolidayPay + allowance : null;
+  const calculatedAllowance = allowance !== null ? daysPresent * allowance : null;
+  const grossPay = (basicPay !== null && calculatedAllowance !== null) ? basicPay + weekendPremium + holidayPay + otRegularPay + otWeekendPay + otHolidayPay + calculatedAllowance : null;
   
   // PhilHealth calculation: Monthly salary * rate / 2 (employee share)
   let philhealth = null;
@@ -1760,7 +1848,7 @@ function renderPayslipPreview(empId) {
     philhealth = Math.max(250, Math.min(2500, philhealth));
   }
   
-  const totalDeductions = (sss !== null && philhealth !== null && pagibig !== null) ? sss + philhealth + pagibig : null;
+  const totalDeductions = (sss !== null && philhealth !== null && pagibig !== null && sssLoan !== null && pagibigLoan !== null) ? sss + philhealth + pagibig + sssLoan + pagibigLoan : null;
   const netPay = (grossPay !== null && totalDeductions !== null) ? grossPay - totalDeductions : null;
   
   const formatAmount = (val) => val !== null ? `₱${val.toFixed(2)}` : '—';
@@ -1796,7 +1884,7 @@ function renderPayslipPreview(empId) {
             <tr><td style="padding: 6px 0;">OT Pay (Regular)</td><td style="text-align: right; font-weight: 600;">${formatAmount(otRegularPay)}</td></tr>
             <tr><td style="padding: 6px 0;">OT Pay (Weekend)</td><td style="text-align: right; font-weight: 600;">${formatAmount(otWeekendPay)}</td></tr>
             <tr><td style="padding: 6px 0;">OT Pay (Holiday)</td><td style="text-align: right; font-weight: 600;">${formatAmount(otHolidayPay)}</td></tr>
-            <tr><td style="padding: 6px 0;">Allowance</td><td style="text-align: right; font-weight: 600;">${formatAmount(allowance)}</td></tr>
+            <tr><td style="padding: 6px 0;">Allowance (${daysPresent} days)</td><td style="text-align: right; font-weight: 600;">${formatAmount(calculatedAllowance)}</td></tr>
             <tr style="border-top: 2px solid #04AB92;"><td style="padding: 10px 0; font-weight: bold; color: #04AB92;">GROSS PAY</td><td style="text-align: right; font-weight: bold; color: #04AB92; font-size: 14px;">${formatAmount(grossPay)}</td></tr>
           </table>
         </div>
@@ -1807,6 +1895,8 @@ function renderPayslipPreview(empId) {
             <tr><td style="padding: 6px 0;">SSS</td><td style="text-align: right; font-weight: 600;">${formatAmount(sss)}</td></tr>
             <tr><td style="padding: 6px 0;">PhilHealth</td><td style="text-align: right; font-weight: 600;">${formatAmount(philhealth)}</td></tr>
             <tr><td style="padding: 6px 0;">Pag-IBIG</td><td style="text-align: right; font-weight: 600;">${formatAmount(pagibig)}</td></tr>
+            <tr><td style="padding: 6px 0;">SSS Loan</td><td style="text-align: right; font-weight: 600;">${formatAmount(sssLoan)}</td></tr>
+            <tr><td style="padding: 6px 0;">Pag-IBIG Loan</td><td style="text-align: right; font-weight: 600;">${formatAmount(pagibigLoan)}</td></tr>
             <tr style="border-top: 2px solid #CC2229;"><td style="padding: 10px 0; font-weight: bold;">TOTAL DEDUCTIONS</td><td style="text-align: right; font-weight: bold; font-size: 14px;">${formatAmount(totalDeductions)}</td></tr>
           </table>
         </div>
@@ -2049,10 +2139,15 @@ function generateExcelAsync(progressWrap, progressBar, progressLabel, progressPc
     const empName = empData ? empData.name : '';
     const basicPayDaily = empData ? empData.basicPay : 695;
     const hourlyRate = empData ? empData.hourlyRate : 86.88;
-    const allowance = empData ? empData.allowance : 0;
+    const dailyAllowance = empData ? empData.allowance : 0;
     const sss = empData ? empData.sss : 581.3;
+    const sssLoan = empData ? (empData.sssLoan || 0) : 0;
     const pagibig = empData ? empData.pagibig : 100;
+    const pagibigLoan = empData ? (empData.pagibigLoan || 0) : 0;
     const philhealthRate = empData ? empData.philhealthRate : 5;
+    
+    // Count days present in attendance log (days with time in)
+    const daysPresent = rows.filter(r => r[2] && r[2] !== '—').length;
     
     // OPTIMIZATION: Convert to Sets and pre-calculate worked dates
     const holidaySet = new Set(holidays);
@@ -2143,10 +2238,10 @@ function generateExcelAsync(progressWrap, progressBar, progressLabel, progressPc
       ['', 'Basic Pay', '', '', 'SSS', empData ? `₱${sss.toFixed(2)}` : ''],
       ['', 'Weekend Premium', '', '', 'PhilHealth'],
       ['', 'Holiday Pay', '', '', 'Pag-IBIG', empData ? `₱${pagibig.toFixed(2)}` : ''],
-      ['', 'OT Pay (Regular)'],
-      ['', 'OT Pay (Weekend)'],
+      ['', 'OT Pay (Regular)', '', '', 'SSS Loan', empData ? `₱${sssLoan.toFixed(2)}` : ''],
+      ['', 'OT Pay (Weekend)', '', '', 'Pag-IBIG Loan', empData ? `₱${pagibigLoan.toFixed(2)}` : ''],
       ['', 'OT Pay (Holiday)'],
-      ['', 'Allowance', empData ? `₱${allowance.toFixed(2)}` : ''],
+      ['', 'Allowance', empData ? `₱${dailyAllowance.toFixed(2)}` : ''],
       ['', 'GROSS PAY', '', '', 'TOTAL DEDUCTIONS'],
       [],
       ['', 'NET PAY'],
@@ -2197,6 +2292,10 @@ function generateExcelAsync(progressWrap, progressBar, progressLabel, progressPc
     const holidayOTPay = (holidayOTWeekday * 1.25 + holidayOTWeekend * 1.3) * hourlyRate;
     wsp['C16'] = { t: 'n', v: holidayOTPay, z: '₱#,##0.00' };
     
+    // C17: Allowance = (Full days + Half days * 0.5) * daily allowance
+    // Full day = Hours Worked >= 4, Half day = Hours Worked < 4 but > 0
+    wsp['C17'] = { t: 'n', f: `(COUNTIFS('${attSheetName}'!F4:F${attLastRow},">=4")+COUNTIFS('${attSheetName}'!F4:F${attLastRow},">0",'${attSheetName}'!F4:F${attLastRow},"<4")*0.5)*${dailyAllowance}`, z: '₱#,##0.00' };
+    
     // C18: Gross Pay = SUM(C11:C17)
     wsp['C18'] = { t: 'n', f: 'SUM(C11:C17)', z: '₱#,##0.00' };
     
@@ -2209,8 +2308,10 @@ function generateExcelAsync(progressWrap, progressBar, progressLabel, progressPc
       wsp['F12'] = { v: '', t: 's' };
     }
     
-    // F18: Total Deductions = SUM(F11:F13)
-    wsp['F18'] = { t: 'n', f: 'SUM(F11:F13)', z: '₱#,##0.00' };
+    // F15: Pag-IBIG Loan value (already in data array)
+    
+    // F18: Total Deductions = SUM(F11:F15)
+    wsp['F18'] = { t: 'n', f: 'SUM(F11:F15)', z: '₱#,##0.00' };
     
     // B21: Net Pay = Gross Pay - Total Deductions
     wsp['B21'] = { t: 'n', f: 'C18-F18', z: '₱#,##0.00' };

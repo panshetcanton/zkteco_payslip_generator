@@ -855,6 +855,14 @@
             <label>Pag-IBIG Loan (₱) - Optional</label>
             <input type="number" id="empPagibigLoan" step="0.01" value="0">
           </div>
+          <div class="form-group">
+            <label>Leave (₱) - Optional</label>
+            <input type="number" id="empLeave" step="0.01" value="0" min="0">
+          </div>
+          <div class="form-group">
+            <label>Cash Advance (₱) - Optional</label>
+            <input type="number" id="empCashAdvance" step="0.01" value="0" min="0">
+          </div>
         </div>
         <button type="submit" class="btn-primary">💾 Save Employee</button>
       </form>
@@ -1138,6 +1146,8 @@ function enrollEmployee(e) {
   const philhealthRate = 5; // Fixed at 5%
   const pagibig = parseFloat(document.getElementById('empPagibig').value);
   const pagibigLoan = parseFloat(document.getElementById('empPagibigLoan').value) || 0;
+  const leave = parseFloat(document.getElementById('empLeave').value) || 0;
+  const cashAdvance = parseFloat(document.getElementById('empCashAdvance').value) || 0;
   
   // SSS will be calculated dynamically based on actual earnings in payslip
   // Store 0 as placeholder - will be calculated from attendance data
@@ -1149,7 +1159,7 @@ function enrollEmployee(e) {
   }
 
   const targetId = editingEmpId || empId;
-  employees[targetId] = { name, basicPay, hourlyRate, allowance, sss, sssLoan, philhealthRate, pagibig, pagibigLoan };
+  employees[targetId] = { name, basicPay, hourlyRate, allowance, sss, sssLoan, philhealthRate, pagibig, pagibigLoan, leave, cashAdvance };
   saveEmployees();
   
   alert(editingEmpId ? 'Employee updated!' : 'Employee enrolled!');
@@ -1171,6 +1181,8 @@ function editEmployee(empId) {
   document.getElementById('empSSSLoan').value = emp.sssLoan || 0;
   document.getElementById('empPagibig').value = emp.pagibig;
   document.getElementById('empPagibigLoan').value = emp.pagibigLoan || 0;
+  document.getElementById('empLeave').value = emp.leave || 0;
+  document.getElementById('empCashAdvance').value = emp.cashAdvance || 0;
 }
 
 function deleteEmployee(empId) {
@@ -1190,7 +1202,7 @@ function renderEmployeeList() {
     return;
   }
 
-  let html = '<table><thead><tr><th>ID</th><th>Name</th><th>Daily Pay</th><th>Hourly</th><th>Allowance</th><th>SSS Loan</th><th>Pag-IBIG</th><th>Pag-IBIG Loan</th><th>Actions</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>ID</th><th>Name</th><th>Daily Pay</th><th>Hourly</th><th>Allowance</th><th>SSS Loan</th><th>Pag-IBIG</th><th>Pag-IBIG Loan</th><th>Leave</th><th>Cash Advance</th><th>Actions</th></tr></thead><tbody>';
   for (const id of empIds) {
     const e = employees[id];
     html += `<tr>
@@ -1202,6 +1214,8 @@ function renderEmployeeList() {
       <td>₱${(e.sssLoan || 0).toFixed(2)}</td>
       <td>₱${e.pagibig.toFixed(2)}</td>
       <td>₱${(e.pagibigLoan || 0).toFixed(2)}</td>
+      <td>₱${(e.leave || 0).toFixed(2)}</td>
+      <td>₱${(e.cashAdvance || 0).toFixed(2)}</td>
       <td class="actions">
         <button class="btn-secondary" onclick="editEmployee('${id}')">✏️ Edit</button>
         <button class="btn-danger" onclick="deleteEmployee('${id}')">🗑️</button>
@@ -1224,7 +1238,7 @@ function exportEmployees() {
   
   // Prepare data array with title
   const title = [['EMPLOYEE MASTER LIST']];
-  const headers = ['Employee ID', 'Name', 'Daily Basic Pay', 'Hourly Rate', 'Allowance', 'SSS Loan', 'Pag-IBIG', 'Pag-IBIG Loan'];
+  const headers = ['Employee ID', 'Name', 'Daily Basic Pay', 'Hourly Rate', 'Allowance', 'SSS Loan', 'Pag-IBIG', 'Pag-IBIG Loan', 'Leave', 'Cash Advance'];
   const data = [
     ...title,
     [],
@@ -1241,7 +1255,9 @@ function exportEmployees() {
       e.allowance,
       e.sssLoan || 0,
       e.pagibig,
-      e.pagibigLoan || 0
+      e.pagibigLoan || 0,
+      e.leave || 0,
+      e.cashAdvance || 0
     ]);
   }
   
@@ -1257,11 +1273,13 @@ function exportEmployees() {
     { wch: 12 },  // Allowance
     { wch: 12 },  // SSS Loan
     { wch: 12 },  // Pag-IBIG
-    { wch: 15 }   // Pag-IBIG Loan
+    { wch: 15 },  // Pag-IBIG Loan
+    { wch: 12 },  // Leave
+    { wch: 15 }   // Cash Advance
   ];
   
   // Merge title cells
-  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }];
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 9 } }];
   
   const cellBorder = {
     top: { style: 'thin', color: { rgb: '000000' } },
@@ -1279,7 +1297,7 @@ function exportEmployees() {
   };
   
   // Fill merged title cells with same style
-  for (let c = 1; c < 8; c++) {
+  for (let c = 1; c < 10; c++) {
     const cellAddr = XLSX.utils.encode_cell({ r: 0, c });
     if (!ws[cellAddr]) ws[cellAddr] = { v: '', t: 's' };
     ws[cellAddr].s = {
@@ -1296,7 +1314,7 @@ function exportEmployees() {
     border: cellBorder
   };
   
-  for (let c = 0; c < 8; c++) {
+  for (let c = 0; c < 10; c++) {
     const cellAddr = XLSX.utils.encode_cell({ r: 2, c });
     if (!ws[cellAddr]) ws[cellAddr] = { v: '', t: 's' };
     ws[cellAddr].s = headerStyle;
@@ -1314,7 +1332,7 @@ function exportEmployees() {
     const rowIndex = r + 3; // Data starts at row 3 (0-indexed)
     const bg = r % 2 === 0 ? 'FFFFFF' : 'F0FAF8'; // Alternating white and light green
     
-    for (let c = 0; c < 8; c++) {
+    for (let c = 0; c < 10; c++) {
       const cellAddr = XLSX.utils.encode_cell({ r: rowIndex, c });
       if (!ws[cellAddr]) ws[cellAddr] = { v: '', t: 's' };
       
@@ -1325,15 +1343,15 @@ function exportEmployees() {
         border: dataBorder
       };
       
-      // Format currency columns (Daily Basic Pay, Hourly Rate, Allowance, SSS Loan, Pag-IBIG, Pag-IBIG Loan)
-      if (c === 2 || c === 3 || c === 4 || c === 5 || c === 6 || c === 7) {
+      // Format currency columns (Daily Basic Pay, Hourly Rate, Allowance, SSS Loan, Pag-IBIG, Pag-IBIG Loan, Leave, Cash Advance)
+      if (c === 2 || c === 3 || c === 4 || c === 5 || c === 6 || c === 7 || c === 8 || c === 9) {
         ws[cellAddr].z = '₱#,##0.00';
       }
     }
   }
   
   // Set reference range
-  ws['!ref'] = `A1:H${empIds.length + 3}`;
+  ws['!ref'] = `A1:J${empIds.length + 3}`;
   
   // Add worksheet to workbook
   XLSX.utils.book_append_sheet(wb, ws, 'Employees');
@@ -1372,7 +1390,7 @@ function importEmployees(e) {
       // Skip title (row 0), blank (row 1), and header (row 2) - start from row 3
       for (let i = 3; i < jsonData.length; i++) {
         const row = jsonData[i];
-        if (!row || row.length < 8) {
+        if (!row || row.length < 10) {
           console.log(`Skipping row ${i} - insufficient columns`);
           continue;
         }
@@ -1394,7 +1412,9 @@ function importEmployees(e) {
           sssLoan: parseFloat(row[5]) || 0,
           philhealthRate: 5, // Fixed at 5%
           pagibig: parseFloat(row[6]) || 0,
-          pagibigLoan: parseFloat(row[7]) || 0
+          pagibigLoan: parseFloat(row[7]) || 0,
+          leave: parseFloat(row[8]) || 0,
+          cashAdvance: parseFloat(row[9]) || 0
         };
         console.log(`Imported employee ${empId}:`, imported[empId]);
       }
@@ -1822,6 +1842,8 @@ function renderPayslipPreview(empId) {
   const sssLoan = empData ? (empData.sssLoan || 0) : null;
   const pagibig = empData ? empData.pagibig : null;
   const pagibigLoan = empData ? (empData.pagibigLoan || 0) : null;
+  const leave = empData ? (empData.leave || 0) : null;
+  const cashAdvance = empData ? (empData.cashAdvance || 0) : null;
   
   // Count days present in attendance log (full days + half days)
   // Full day = Hours Worked >= 4, Half day = Hours Worked < 4 but > 0
@@ -1840,7 +1862,7 @@ function renderPayslipPreview(empId) {
   const totalEarningsForSSS = (basicPay || 0) + (weekendPremium || 0) + (holidayPay || 0) + (specialHolidayPay || 0) + (otRegularPay || 0) + (otWeekendPay || 0);
   const sss = calculateSSS(totalEarningsForSSS);
   
-  const grossPay = (basicPay !== null && calculatedAllowance !== null) ? basicPay + weekendPremium + holidayPay + specialHolidayPay + otRegularPay + otWeekendPay + calculatedAllowance : null;
+  const grossPay = (basicPay !== null && calculatedAllowance !== null) ? basicPay + weekendPremium + holidayPay + specialHolidayPay + otRegularPay + otWeekendPay + calculatedAllowance + (leave || 0) : null;
   
   // PhilHealth calculation: Total earnings (excluding allowance) * rate / 2 (employee share)
   let philhealth = null;
@@ -1850,7 +1872,7 @@ function renderPayslipPreview(empId) {
     philhealth = Math.max(250, Math.min(2500, philhealth));
   }
   
-  const totalDeductions = (sss !== null && philhealth !== null && pagibig !== null && sssLoan !== null && pagibigLoan !== null) ? sss + philhealth + pagibig + sssLoan + pagibigLoan : null;
+  const totalDeductions = (sss !== null && philhealth !== null && pagibig !== null && sssLoan !== null && pagibigLoan !== null && cashAdvance !== null) ? sss + philhealth + pagibig + sssLoan + pagibigLoan + cashAdvance : null;
   const netPay = (grossPay !== null && totalDeductions !== null) ? grossPay - totalDeductions : null;
   
   const formatAmount = (val) => val !== null ? `₱${val.toFixed(2)}` : '—';
@@ -1887,6 +1909,7 @@ function renderPayslipPreview(empId) {
             <tr><td style="padding: 6px 0;">OT Pay (Regular)</td><td style="text-align: right; font-weight: 600;">${formatAmount(otRegularPay)}</td></tr>
             <tr><td style="padding: 6px 0;">OT Pay (Weekend)</td><td style="text-align: right; font-weight: 600;">${formatAmount(otWeekendPay)}</td></tr>
             <tr><td style="padding: 6px 0;">Allowance (${daysPresent} days)</td><td style="text-align: right; font-weight: 600;">${formatAmount(calculatedAllowance)}</td></tr>
+            <tr><td style="padding: 6px 0;">Leave</td><td style="text-align: right; font-weight: 600;">${formatAmount(leave)}</td></tr>
             <tr style="border-top: 2px solid #04AB92;"><td style="padding: 10px 0; font-weight: bold; color: #04AB92;">GROSS PAY</td><td style="text-align: right; font-weight: bold; color: #04AB92; font-size: 14px;">${formatAmount(grossPay)}</td></tr>
           </table>
         </div>
@@ -1899,6 +1922,7 @@ function renderPayslipPreview(empId) {
             <tr><td style="padding: 6px 0;">Pag-IBIG</td><td style="text-align: right; font-weight: 600;">${formatAmount(pagibig)}</td></tr>
             <tr><td style="padding: 6px 0;">SSS Loan</td><td style="text-align: right; font-weight: 600;">${formatAmount(sssLoan)}</td></tr>
             <tr><td style="padding: 6px 0;">Pag-IBIG Loan</td><td style="text-align: right; font-weight: 600;">${formatAmount(pagibigLoan)}</td></tr>
+            <tr><td style="padding: 6px 0;">Cash Advance</td><td style="text-align: right; font-weight: 600;">${formatAmount(cashAdvance)}</td></tr>
             <tr style="border-top: 2px solid #CC2229;"><td style="padding: 10px 0; font-weight: bold;">TOTAL DEDUCTIONS</td><td style="text-align: right; font-weight: bold; font-size: 14px;">${formatAmount(totalDeductions)}</td></tr>
           </table>
         </div>
@@ -2223,6 +2247,8 @@ function generateExcelAsync(progressWrap, progressBar, progressLabel, progressPc
     const pagibig = empData ? empData.pagibig : 100;
     const pagibigLoan = empData ? (empData.pagibigLoan || 0) : 0;
     const philhealthRate = empData ? empData.philhealthRate : 5;
+    const leave = empData ? (empData.leave || 0) : 0;
+    const cashAdvance = empData ? (empData.cashAdvance || 0) : 0;
     
     // Count days present in attendance log (days with time in)
     const daysPresent = rows.filter(r => r[2] && r[2] !== '—').length;
@@ -2302,8 +2328,9 @@ function generateExcelAsync(progressWrap, progressBar, progressLabel, progressPc
       ['', 'Holiday Pay', '', '', 'Pag-IBIG', empData ? `₱${pagibig.toFixed(2)}` : ''],
       ['', 'Special Holiday Pay', '', '', 'SSS Loan', empData ? `₱${sssLoan.toFixed(2)}` : ''],
       ['', 'OT Pay (Regular)', '', '', 'Pag-IBIG Loan', empData ? `₱${pagibigLoan.toFixed(2)}` : ''],
-      ['', 'OT Pay (Weekend)', '', '', '', ''],
+      ['', 'OT Pay (Weekend)', '', '', 'Cash Advance', empData ? `₱${cashAdvance.toFixed(2)}` : ''],
       ['', 'Allowance', empData ? `₱${dailyAllowance.toFixed(2)}` : ''],
+      ['', 'Leave', empData ? `₱${leave.toFixed(2)}` : ''],
       ['', 'GROSS PAY', '', '', 'TOTAL DEDUCTIONS'],
       [],
       ['', 'NET PAY'],
@@ -2345,8 +2372,11 @@ function generateExcelAsync(progressWrap, progressBar, progressLabel, progressPc
     // C17: Allowance
     wsp['C17'] = { t: 'n', f: `(COUNTIFS('${attSheetName}'!F4:F${attLastRow},">=4")+COUNTIFS('${attSheetName}'!F4:F${attLastRow},">0",'${attSheetName}'!F4:F${attLastRow},"<4")*0.5)*${dailyAllowance}`, z: '₱#,##0.00' };
     
-    // C18: Gross Pay = SUM(C11:C17)
-    wsp['C18'] = { t: 'n', f: 'SUM(C11:C17)', z: '₱#,##0.00' };
+    // C18: Leave
+    wsp['C18'] = { t: 'n', v: leave, z: '₱#,##0.00' };
+    
+    // C19: Gross Pay = SUM(C11:C18)
+    wsp['C19'] = { t: 'n', f: 'SUM(C11:C18)', z: '₱#,##0.00' };
     
     // F11: SSS
     wsp['F11'] = { t: 'n', f: `VLOOKUP(SUM(C11:C16),SSS_Table!A:C,3,TRUE)`, z: '₱#,##0.00' };
@@ -2358,29 +2388,29 @@ function generateExcelAsync(progressWrap, progressBar, progressLabel, progressPc
       wsp['F12'] = { v: '', t: 's' };
     }
     
-    // F18: Total Deductions = SUM(F11:F15)
-    wsp['F18'] = { t: 'n', f: 'SUM(F11:F15)', z: '₱#,##0.00' };
+    // F19: Total Deductions = SUM(F11:F16)
+    wsp['F19'] = { t: 'n', f: 'SUM(F11:F16)', z: '₱#,##0.00' };
     
-    // B21: Net Pay
-    wsp['B21'] = { t: 'n', f: 'C18-F18', z: '₱#,##0.00' };
+    // B22: Net Pay
+    wsp['B22'] = { t: 'n', f: 'C19-F19', z: '₱#,##0.00' };
 
     // Employee name placeholder in signature
-    wsp['E25'] = { v: empName || `Employee ${empId}`, t: 's' };
+    wsp['E26'] = { v: empName || `Employee ${empId}`, t: 's' };
 
-    wsp['!ref'] = `A1:G26`;
+    wsp['!ref'] = `A1:G27`;
     wsp['!cols'] = [{ wch: 3 }, { wch: 20 }, { wch: 15 }, { wch: 3 }, { wch: 18 }, { wch: 15 }, { wch: 3 }];
     wsp['!merges'] = [
       { s: { r: 1, c: 1 }, e: { r: 1, c: 5 } },
       { s: { r: 2, c: 1 }, e: { r: 2, c: 5 } },
       { s: { r: 3, c: 1 }, e: { r: 3, c: 5 } },
-      { s: { r: 19, c: 1 }, e: { r: 19, c: 5 } },
       { s: { r: 20, c: 1 }, e: { r: 20, c: 5 } },
-      { s: { r: 22, c: 1 }, e: { r: 22, c: 2 } },
-      { s: { r: 22, c: 4 }, e: { r: 22, c: 5 } },
-      { s: { r: 23, c: 1 }, e: { r: 24, c: 2 } },
-      { s: { r: 23, c: 4 }, e: { r: 24, c: 5 } },
-      { s: { r: 25, c: 1 }, e: { r: 25, c: 2 } },
-      { s: { r: 25, c: 4 }, e: { r: 25, c: 5 } }
+      { s: { r: 21, c: 1 }, e: { r: 21, c: 5 } },
+      { s: { r: 23, c: 1 }, e: { r: 23, c: 2 } },
+      { s: { r: 23, c: 4 }, e: { r: 23, c: 5 } },
+      { s: { r: 24, c: 1 }, e: { r: 25, c: 2 } },
+      { s: { r: 24, c: 4 }, e: { r: 25, c: 5 } },
+      { s: { r: 26, c: 1 }, e: { r: 26, c: 2 } },
+      { s: { r: 26, c: 4 }, e: { r: 26, c: 5 } }
     ];
 
     const payBorder = {
@@ -2449,7 +2479,7 @@ function generateExcelAsync(progressWrap, progressBar, progressLabel, progressPc
     });
 
     // GROSS PAY and TOTAL DEDUCTIONS
-    ['B18', 'E18'].forEach(addr => {
+    ['B19', 'E19'].forEach(addr => {
       if (!wsp[addr]) wsp[addr] = { v: '', t: 's' };
       wsp[addr].s = {
         font: { bold: true, sz: 10, name: 'Arial' },
@@ -2458,40 +2488,40 @@ function generateExcelAsync(progressWrap, progressBar, progressLabel, progressPc
       };
     });
 
-    // NET PAY label (B20) - with outer border
-    wsp['B20'].s = {
+    // NET PAY label (B21) - with outer border
+    wsp['B21'].s = {
       font: { bold: true, sz: 12, name: 'Arial', color: { rgb: 'FFFFFF' } },
       fill: { fgColor: { rgb: '04AB92' } },
       alignment: { horizontal: 'center', vertical: 'center' },
       border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, left: { style: 'thin', color: { rgb: '000000' } } }
     };
 
-    ['C20', 'D20', 'E20'].forEach(addr => {
+    ['C21', 'D21', 'E21'].forEach(addr => {
       wsp[addr] = { v: '', t: 's', s: { fill: { fgColor: { rgb: '04AB92' } }, border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } } } };
     });
-    wsp['F20'] = { v: '', t: 's', s: { fill: { fgColor: { rgb: '04AB92' } }, border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, right: { style: 'thin', color: { rgb: '000000' } } } } };
+    wsp['F21'] = { v: '', t: 's', s: { fill: { fgColor: { rgb: '04AB92' } }, border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, right: { style: 'thin', color: { rgb: '000000' } } } } };
 
-    // NET PAY value (B21) - with outer border
-    wsp['B21'].s = {
+    // NET PAY value (B22) - with outer border
+    wsp['B22'].s = {
       font: { bold: true, sz: 18, name: 'Arial', color: { rgb: '04AB92' } },
       alignment: { horizontal: 'center', vertical: 'center' },
       border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, left: { style: 'thin', color: { rgb: '000000' } } },
       numFmt: '₱#,##0.00'
     };
 
-    ['C21', 'D21', 'E21'].forEach(addr => {
+    ['C22', 'D22', 'E22'].forEach(addr => {
       wsp[addr] = { v: '', t: 's', s: { border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } } } };
     });
-    wsp['F21'] = { v: '', t: 's', s: { border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, right: { style: 'thin', color: { rgb: '000000' } } } } };
+    wsp['F22'] = { v: '', t: 's', s: { border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, right: { style: 'thin', color: { rgb: '000000' } } } } };
 
     // Apply borders and styling to all data cells
-    for (let r = 5; r <= 18; r++) {
+    for (let r = 5; r <= 19; r++) {
       for (let c = 1; c <= 5; c++) {
         const addr = XLSX.utils.encode_cell({ r, c });
         if (!wsp[addr]) wsp[addr] = { v: '', t: 's' };
         if (!wsp[addr].s) wsp[addr].s = {};
         
-        if (r === 4 || r === 8 || r === 18) {
+        if (r === 4 || r === 8 || r === 19) {
           wsp[addr].s.border = noBorder;
           if (c === 1) wsp[addr].s.border = { left: { style: 'thin', color: { rgb: '000000' } } };
           if (c === 5) wsp[addr].s.border = { right: { style: 'thin', color: { rgb: '000000' } } };
@@ -2504,14 +2534,14 @@ function generateExcelAsync(progressWrap, progressBar, progressLabel, progressPc
         wsp[addr].s.font = { name: 'Arial', sz: 10 };
         wsp[addr].s.alignment = { vertical: 'center', horizontal: (c === 2 || c === 5) ? 'right' : 'left' };
         
-        if ((c === 2 && r >= 11 && r <= 17) || (c === 5 && r >= 11 && r <= 13)) {
+        if ((c === 2 && r >= 11 && r <= 18) || (c === 5 && r >= 11 && r <= 16)) {
           wsp[addr].s.numFmt = '₱#,##0.00';
         }
       }
     }
 
     // Signature section - with outer border (only on edges, no internal borders in merged areas)
-    for (let r = 21; r <= 24; r++) {
+    for (let r = 22; r <= 25; r++) {
       for (let c = 1; c <= 5; c++) {
         const addr = XLSX.utils.encode_cell({ r, c });
         if (!wsp[addr]) wsp[addr] = { v: '', t: 's' };
@@ -2519,7 +2549,7 @@ function generateExcelAsync(progressWrap, progressBar, progressLabel, progressPc
         const bdr = {};
         if (c === 1) bdr.left = { style: 'thin', color: { rgb: '000000' } };
         if (c === 5) bdr.right = { style: 'thin', color: { rgb: '000000' } };
-        if (r === 24) bdr.bottom = { style: 'thin', color: { rgb: '000000' } };
+        if (r === 25) bdr.bottom = { style: 'thin', color: { rgb: '000000' } };
         
         wsp[addr].s = { 
           border: Object.keys(bdr).length > 0 ? bdr : noBorder,
@@ -2529,22 +2559,22 @@ function generateExcelAsync(progressWrap, progressBar, progressLabel, progressPc
       }
     }
 
-    // Restore labels for Prepared by and Received by (row 22)
-    wsp['B22'].v = 'Prepared by:';
-    wsp['E22'].v = 'Received by:';
+    // Restore labels for Prepared by and Received by (row 23)
+    wsp['B23'].v = 'Prepared by:';
+    wsp['E23'].v = 'Received by:';
 
     // Merged signature cells - remove all internal borders
-    // B23:C24 merged area (HR signature)
-    wsp['B24'].s.border = { left: { style: 'thin', color: { rgb: '000000' } } };
-    wsp['C24'].s.border = noBorder;
-    wsp['B25'].s.border = { left: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } };
-    wsp['C25'].s.border = { bottom: { style: 'thin', color: { rgb: '000000' } } };
+    // B24:C25 merged area (HR signature)
+    wsp['B25'].s.border = { left: { style: 'thin', color: { rgb: '000000' } } };
+    wsp['C25'].s.border = noBorder;
+    wsp['B26'].s.border = { left: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } };
+    wsp['C26'].s.border = { bottom: { style: 'thin', color: { rgb: '000000' } } };
     
-    // E23:F24 merged area (Employee signature)
-    wsp['E24'].s.border = noBorder;
-    wsp['F24'].s.border = { right: { style: 'thin', color: { rgb: '000000' } } };
-    wsp['E25'].s.border = { bottom: { style: 'thin', color: { rgb: '000000' } } };
-    wsp['F25'].s.border = { right: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } };
+    // E24:F25 merged area (Employee signature)
+    wsp['E25'].s.border = noBorder;
+    wsp['F25'].s.border = { right: { style: 'thin', color: { rgb: '000000' } } };
+    wsp['E26'].s.border = { bottom: { style: 'thin', color: { rgb: '000000' } } };
+    wsp['F26'].s.border = { right: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } } };
 
     XLSX.utils.book_append_sheet(wb, wsp, `EMP_${empId}_Payslip`);
 
